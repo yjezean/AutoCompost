@@ -1,0 +1,61 @@
+# Instruction and Planning Files (generated during development)
+cloud_and_hardware_reference.md
+flutter_frontend_plan_prioritized.md
+FLUTTER_APP_DESIGN.md
+PHASE_2_REQUIREMENTS.md
+FLUTTER_IMPLEMENTATION_PLAN.md
+cloud/DEPLOY.md
+cloud/SYSTEMD_SETUP.md
+project_structure.md
+API_DOCS.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+

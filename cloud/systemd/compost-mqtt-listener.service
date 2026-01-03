@@ -1,0 +1,25 @@
+[Unit]
+Description=Compost Monitoring MQTT Listener Service
+After=network.target postgresql.service mosquitto.service
+Requires=postgresql.service mosquitto.service
+
+[Service]
+Type=simple
+User=mrchongyijian
+Group=mrchongyijian
+WorkingDirectory=/opt/compost-backend
+Environment="PATH=/opt/compost-backend/venv/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/opt/compost-backend/venv/bin/python /opt/compost-backend/mqtt_listener.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=compost-mqtt-listener
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+
