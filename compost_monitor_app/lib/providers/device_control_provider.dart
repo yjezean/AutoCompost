@@ -34,8 +34,13 @@ class DeviceControlProvider with ChangeNotifier {
     // Listen to device status updates
     _statusSubscription = _mqttService.deviceStatusStream.listen(
       (status) {
+        print(
+            'DeviceControlProvider: Received status update - ${status.device}: ${status.action}');
         _deviceStates[status.device] = status.action;
         notifyListeners();
+      },
+      onError: (error) {
+        print('DeviceControlProvider: Error in status stream: $error');
       },
     );
   }
@@ -72,23 +77,23 @@ class DeviceControlProvider with ChangeNotifier {
 
     try {
       final deviceName = device.name; // 'fan', 'lid', 'stirrer'
+      print('DeviceControlProvider: Sending command - $deviceName -> $action');
       await _mqttService.publishCommand(deviceName, action);
-      
-      // Wait a bit for status update
-      await Future.delayed(const Duration(milliseconds: 500));
-      
+
+      // Don't wait - status updates come from hardware via MQTT stream
       _commandStates[device] = DeviceCommandState.success;
       notifyListeners();
-      
+
       // Reset to idle after a short delay
       Future.delayed(const Duration(seconds: 2), () {
         _commandStates[device] = DeviceCommandState.idle;
         notifyListeners();
       });
     } catch (e) {
+      print('DeviceControlProvider: Error sending command: $e');
       _commandStates[device] = DeviceCommandState.error;
       notifyListeners();
-      
+
       // Reset to idle after error
       Future.delayed(const Duration(seconds: 2), () {
         _commandStates[device] = DeviceCommandState.idle;
@@ -103,13 +108,17 @@ class DeviceControlProvider with ChangeNotifier {
   }
 
   Future<void> toggleLid() async {
-    final isOpen = _deviceStates[DeviceType.lid] == DeviceAction.open;
+    final currentAction = _deviceStates[DeviceType.lid] ?? DeviceAction.close;
+    final isOpen = currentAction == DeviceAction.open;
+    print(
+        'DeviceControlProvider: toggleLid - current state: $currentAction, isOpen: $isOpen, sending: ${isOpen ? 'CLOSE' : 'OPEN'}');
     await sendCommand(DeviceType.lid, isOpen ? 'CLOSE' : 'OPEN');
   }
 
   Future<void> toggleStirrer() async {
-    final isRunning = _deviceStates[DeviceType.stirrer] == DeviceAction.running ||
-        _deviceStates[DeviceType.stirrer] == DeviceAction.start;
+    final isRunning =
+        _deviceStates[DeviceType.stirrer] == DeviceAction.running ||
+            _deviceStates[DeviceType.stirrer] == DeviceAction.start;
     await sendCommand(DeviceType.stirrer, isRunning ? 'STOP' : 'START');
   }
 
@@ -119,4 +128,3 @@ class DeviceControlProvider with ChangeNotifier {
     super.dispose();
   }
 }
-

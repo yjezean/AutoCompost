@@ -53,9 +53,8 @@ class _ChartScreenState extends State<ChartScreen> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : const Icon(Icons.refresh),
-                onPressed: provider.isLoading
-                    ? null
-                    : () => provider.fetchData(),
+                onPressed:
+                    provider.isLoading ? null : () => provider.fetchData(),
                 tooltip: 'Refresh data',
               );
             },
@@ -165,11 +164,15 @@ class _ChartScreenState extends State<ChartScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                         child: Row(
                           children: [
-                            Icon(Icons.thermostat, color: AppTheme.tempCritical, size: 20),
+                            Icon(Icons.thermostat,
+                                color: AppTheme.tempCritical, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'Temperature',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
                                     color: AppTheme.tempCritical,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -187,11 +190,15 @@ class _ChartScreenState extends State<ChartScreen> {
                         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                         child: Row(
                           children: [
-                            Icon(Icons.water_drop, color: AppTheme.humHigh, size: 20),
+                            Icon(Icons.water_drop,
+                                color: AppTheme.humHigh, size: 20),
                             const SizedBox(width: 8),
                             Text(
                               'Humidity',
-                              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineSmall
+                                  ?.copyWith(
                                     color: AppTheme.humHigh,
                                     fontWeight: FontWeight.bold,
                                   ),
@@ -225,12 +232,8 @@ class _ChartScreenState extends State<ChartScreen> {
     return ElevatedButton(
       onPressed: () => provider.setSelectedDays(days),
       style: ElevatedButton.styleFrom(
-        backgroundColor: isSelected
-            ? AppTheme.primaryGreen
-            : AppTheme.surface,
-        foregroundColor: isSelected
-            ? Colors.white
-            : AppTheme.textPrimary,
+        backgroundColor: isSelected ? AppTheme.primaryGreen : AppTheme.surface,
+        foregroundColor: isSelected ? Colors.white : AppTheme.textPrimary,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       ),
       child: Text(label),
@@ -257,4 +260,3 @@ class _ChartScreenState extends State<ChartScreen> {
     );
   }
 }
-

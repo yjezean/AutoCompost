@@ -8,6 +8,8 @@ import 'config_service.dart';
 
 class MqttService {
   MqttServerClient? _client;
+  StreamSubscription<List<MqttReceivedMessage<MqttMessage?>>>?
+      _updatesSubscription;
   final StreamController<SensorData> _sensorDataController =
       StreamController<SensorData>.broadcast();
   final StreamController<DeviceStatus> _deviceStatusController =
@@ -26,14 +28,15 @@ class MqttService {
   Future<void> connect() async {
     try {
       final brokerUrl = await ConfigService.getMqttBrokerUrl();
-      
+
       // Parse URL (format: tcp://host:port)
       final uri = Uri.parse(brokerUrl);
       final host = uri.host;
       final port = uri.hasPort ? uri.port : 1883;
 
-      _client = MqttServerClient.withPort(host, 'compost_flutter_${DateTime.now().millisecondsSinceEpoch}', port);
-      _client!.logging(on: false);
+      _client = MqttServerClient.withPort(host,
+          'compost_flutter_${DateTime.now().millisecondsSinceEpoch}', port);
+      _client!.logging(on: true); // Enable logging temporarily for debugging
       _client!.keepAlivePeriod = 60;
       _client!.autoReconnect = true;
 
@@ -43,23 +46,40 @@ class MqttService {
       _client!.onSubscribed = _onSubscribed;
       _client!.pongCallback = _pong;
 
-      // Set up message callback
-      _client!.updates?.listen((List<MqttReceivedMessage<MqttMessage?>>? c) {
-        final recMess = c![0].payload as MqttPublishMessage;
-        final topic = c[0].topic;
-        final payload = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
-        _handleMessage(topic, payload);
-      });
-
-      // Connect
+      // Connect first
       final connMessage = MqttConnectMessage()
-          .withClientIdentifier('compost_flutter_${DateTime.now().millisecondsSinceEpoch}')
+          .withClientIdentifier(
+              'compost_flutter_${DateTime.now().millisecondsSinceEpoch}')
           .startClean()
           .withWillQos(MqttQos.atLeastOnce);
 
       _client!.connectionMessage = connMessage;
 
       await _client!.connect();
+
+      // Set up message callback AFTER connection
+      print('MqttService: Setting up updates stream listener after connection');
+      _updatesSubscription = _client!.updates
+          ?.listen((List<MqttReceivedMessage<MqttMessage?>>? c) {
+        if (c == null || c.isEmpty) {
+          print('MqttService: Received empty or null message list');
+          return;
+        }
+        print('MqttService: Received ${c.length} message(s) in callback');
+        for (final message in c) {
+          final recMess = message.payload as MqttPublishMessage?;
+          if (recMess == null) {
+            print('MqttService: Skipping message with null payload');
+            continue;
+          }
+          final topic = message.topic;
+          final payload =
+              MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+          print(
+              'MqttService: Processing message on topic: $topic, payload length: ${payload.length}');
+          _handleMessage(topic, payload);
+        }
+      });
     } catch (e) {
       _isConnected = false;
       _connectionController.add(false);
@@ -68,6 +88,7 @@ class MqttService {
   }
 
   void _onConnected() {
+    print('MqttService: Connected to broker');
     _isConnected = true;
     _connectionController.add(true);
     _subscribeToTopics();
@@ -79,7 +100,7 @@ class MqttService {
   }
 
   void _onSubscribed(String topic) {
-    // Subscription successful
+    print('MqttService: Successfully subscribed to topic: $topic');
   }
 
   void _pong() {
@@ -87,13 +108,16 @@ class MqttService {
   }
 
   void _subscribeToTopics() {
+    print('MqttService: Subscribing to topics...');
     // Subscribe to sensor data
     _client!.subscribe('compost/sensor/data', MqttQos.atLeastOnce);
-    
+    print('MqttService: Subscribed to compost/sensor/data');
+
     // Subscribe to device status topics
     _client!.subscribe('compost/status/fan', MqttQos.atLeastOnce);
     _client!.subscribe('compost/status/lid', MqttQos.atLeastOnce);
     _client!.subscribe('compost/status/stirrer', MqttQos.atLeastOnce);
+    print('MqttService: Subscribed to status topics (fan, lid, stirrer)');
   }
 
   void _handleMessage(String topic, String payload) {
@@ -105,17 +129,25 @@ class MqttService {
       } else if (topic.startsWith('compost/status/')) {
         final deviceType = topic.split('/').last; // 'fan', 'lid', or 'stirrer'
         final jsonData = json.decode(payload) as Map<String, dynamic>;
-        
+
+        print('MqttService: Received status update on $topic: $payload');
+
         // Create DeviceStatus from the message
         final status = DeviceStatus(
           device: _parseDeviceType(deviceType),
           action: DeviceStatus.parseDeviceAction(jsonData['status'] as String),
-          timestamp: DateTime.parse(jsonData['timestamp']),
+          timestamp: DateTime.parse(jsonData['timestamp'] as String),
         );
+        print(
+            'MqttService: Parsed status - device: ${status.device}, action: ${status.action}');
         _deviceStatusController.add(status);
+        print('MqttService: Added status to stream');
       }
-    } catch (e) {
-      // Error parsing message, ignore
+    } catch (e, stackTrace) {
+      // Log error for debugging
+      print('Error handling MQTT message on topic $topic: $e');
+      print('Payload: $payload');
+      print('Stack trace: $stackTrace');
     }
   }
 
@@ -157,10 +189,10 @@ class MqttService {
   }
 
   void dispose() {
+    _updatesSubscription?.cancel();
     disconnect();
     _sensorDataController.close();
     _deviceStatusController.close();
     _connectionController.close();
   }
 }
-

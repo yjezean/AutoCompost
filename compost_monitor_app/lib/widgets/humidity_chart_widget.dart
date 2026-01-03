@@ -129,12 +129,14 @@ class HumidityChartWidget extends StatelessWidget {
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
-                if (touchedSpots.isEmpty || touchedSpots[0].x.toInt() < 0) return [];
+                if (touchedSpots.isEmpty || touchedSpots[0].x.toInt() < 0)
+                  return [];
                 final index = touchedSpots[0].x.toInt();
                 if (index >= data.length) return [];
                 final sensorData = data[index];
-                final timestamp = DateFormat('MM/dd HH:mm:ss').format(sensorData.timestamp);
-                
+                final timestamp =
+                    DateFormat('MM/dd HH:mm:ss').format(sensorData.timestamp);
+
                 return [
                   LineTooltipItem(
                     '$timestamp\n${sensorData.humidity.toStringAsFixed(1)}%',
@@ -165,4 +167,3 @@ class HumidityChartWidget extends StatelessWidget {
     return data.length / 5;
   }
 }
-

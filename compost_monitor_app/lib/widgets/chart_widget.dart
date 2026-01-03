@@ -151,17 +151,19 @@ class ChartWidget extends StatelessWidget {
           lineTouchData: LineTouchData(
             touchTooltipData: LineTouchTooltipData(
               getTooltipItems: (List<LineBarSpot> touchedSpots) {
-                if (touchedSpots.isEmpty || touchedSpots[0].x.toInt() < 0) return [];
+                if (touchedSpots.isEmpty || touchedSpots[0].x.toInt() < 0)
+                  return [];
                 final index = touchedSpots[0].x.toInt();
                 if (index >= data.length) return [];
                 final sensorData = data[index];
-                
-                final timestamp = DateFormat('MM/dd HH:mm:ss').format(sensorData.timestamp);
-                
+
+                final timestamp =
+                    DateFormat('MM/dd HH:mm:ss').format(sensorData.timestamp);
+
                 return touchedSpots.map((LineBarSpot touchedSpot) {
                   String label;
                   Color color;
-                  
+
                   if (touchedSpot.barIndex == 0) {
                     label = '${sensorData.temperature.toStringAsFixed(1)}°C';
                     color = AppTheme.tempCritical;
@@ -169,7 +171,7 @@ class ChartWidget extends StatelessWidget {
                     label = '${sensorData.humidity.toStringAsFixed(1)}%';
                     color = AppTheme.humHigh;
                   }
-                  
+
                   return LineTooltipItem(
                     '$timestamp\n$label',
                     TextStyle(
@@ -223,4 +225,3 @@ class ChartWidget extends StatelessWidget {
     return data.length / 5;
   }
 }
-

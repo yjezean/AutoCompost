@@ -48,6 +48,7 @@ class CompostMQTTListener:
         self.mqtt_client = None
         self.last_fan_state = None
         self.last_lid_state = None
+        self.last_stirrer_state = None
         
     def connect_database(self):
         """Connect to PostgreSQL database"""
@@ -144,6 +145,46 @@ class CompostMQTTListener:
             logger.error(f"Error saving sensor data: {e}")
             self.db_conn.rollback()
     
+    def handle_device_status(self, topic: str, message: str):
+        """Handle device status updates from hardware"""
+        try:
+            status_data = json.loads(message)
+            
+            # Extract device type from topic (e.g., "compost/status/fan" -> "fan")
+            device_type = topic.split('/')[-1]
+            status = status_data.get('status', '').upper()
+            timestamp_str = status_data.get('timestamp')
+            
+            # Parse timestamp
+            if timestamp_str:
+                try:
+                    timestamp_str = timestamp_str.replace('Z', '+00:00')
+                    timestamp = datetime.fromisoformat(timestamp_str).astimezone(GMT8)
+                except (ValueError, AttributeError):
+                    timestamp = datetime.now(GMT8)
+            else:
+                timestamp = datetime.now(GMT8)
+            
+            # Update internal state tracking
+            if device_type == 'fan':
+                self.last_fan_state = status
+            elif device_type == 'lid':
+                self.last_lid_state = status
+            elif device_type == 'stirrer':
+                self.last_stirrer_state = status
+            
+            # Log the status update
+            logger.info(f"Device status update - {device_type}: {status} at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Optional: Save to device_events table if it exists
+            # This would require the device_events table to be created in the database
+            # For now, we just log the status updates
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Error parsing device status JSON: {e}")
+        except Exception as e:
+            logger.error(f"Error handling device status: {e}")
+    
     def check_thresholds_and_control(self, data: Dict):
         """Check sensor readings against thresholds and publish control commands"""
         temp = data['temperature']
@@ -186,6 +227,11 @@ class CompostMQTTListener:
             # Subscribe to sensor data topic
             client.subscribe(config.MQTT_SENSOR_TOPIC)
             logger.info(f"Subscribed to topic: {config.MQTT_SENSOR_TOPIC}")
+            # Subscribe to device status topics
+            client.subscribe("compost/status/fan")
+            client.subscribe("compost/status/lid")
+            client.subscribe("compost/status/stirrer")
+            logger.info("Subscribed to device status topics: compost/status/fan, compost/status/lid, compost/status/stirrer")
         else:
             logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
     
