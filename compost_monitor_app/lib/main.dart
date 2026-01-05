@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'services/mqtt_service.dart';
-import 'services/config_service.dart';
 import 'providers/sensor_provider.dart';
 import 'providers/chart_data_provider.dart';
 import 'providers/device_control_provider.dart';
 import 'providers/compost_batch_provider.dart';
+import 'providers/cycle_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/chart_screen.dart';
 import 'screens/control_screen.dart';
+import 'screens/cycle_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/app_theme.dart';
 
@@ -30,6 +31,7 @@ class CompostMonitorApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ChartDataProvider()),
         ChangeNotifierProvider(create: (_) => DeviceControlProvider(mqttService)),
         ChangeNotifierProvider(create: (_) => CompostBatchProvider()),
+        ChangeNotifierProvider(create: (_) => CycleProvider()),
       ],
       child: MaterialApp(
         title: 'Compost Monitor',
@@ -70,6 +72,7 @@ class _MainScreenState extends State<MainScreen> {
       const DashboardScreen(),
       const ChartScreen(),
       ControlScreen(),
+      const CycleManagementScreen(),
       SettingsScreen(mqttService: widget.mqttService),
     ]);
   }
@@ -119,6 +122,10 @@ class _MainScreenState extends State<MainScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_remote),
             label: 'Control',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.recycling),
+            label: 'Cycles',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings),

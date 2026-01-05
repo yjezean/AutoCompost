@@ -4,6 +4,12 @@ class CompostBatch {
   final DateTime projectedEndDate;
   final String status;
   final DateTime createdAt;
+  // Phase 2 fields (optional)
+  final double? greenWasteKg;
+  final double? brownWasteKg;
+  final double? totalVolumeLiters;
+  final double? cnRatio;
+  final double? initialVolumeLiters;
 
   CompostBatch({
     required this.id,
@@ -11,6 +17,11 @@ class CompostBatch {
     required this.projectedEndDate,
     required this.status,
     required this.createdAt,
+    this.greenWasteKg,
+    this.brownWasteKg,
+    this.totalVolumeLiters,
+    this.cnRatio,
+    this.initialVolumeLiters,
   });
 
   factory CompostBatch.fromJson(Map<String, dynamic> json) {
@@ -20,6 +31,21 @@ class CompostBatch {
       projectedEndDate: DateTime.parse(json['projected_end_date']),
       status: json['status'] as String,
       createdAt: DateTime.parse(json['created_at']),
+      greenWasteKg: json['green_waste_kg'] != null 
+          ? (json['green_waste_kg'] as num).toDouble() 
+          : null,
+      brownWasteKg: json['brown_waste_kg'] != null 
+          ? (json['brown_waste_kg'] as num).toDouble() 
+          : null,
+      totalVolumeLiters: json['total_volume_liters'] != null 
+          ? (json['total_volume_liters'] as num).toDouble() 
+          : null,
+      cnRatio: json['cn_ratio'] != null 
+          ? (json['cn_ratio'] as num).toDouble() 
+          : null,
+      initialVolumeLiters: json['initial_volume_liters'] != null 
+          ? (json['initial_volume_liters'] as num).toDouble() 
+          : null,
     );
   }
 
@@ -30,6 +56,11 @@ class CompostBatch {
       'projected_end_date': projectedEndDate.toIso8601String(),
       'status': status,
       'created_at': createdAt.toIso8601String(),
+      'green_waste_kg': greenWasteKg,
+      'brown_waste_kg': brownWasteKg,
+      'total_volume_liters': totalVolumeLiters,
+      'cn_ratio': cnRatio,
+      'initial_volume_liters': initialVolumeLiters,
     };
   }
 

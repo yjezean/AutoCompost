@@ -133,10 +133,14 @@ class MqttService {
         print('MqttService: Received status update on $topic: $payload');
 
         // Create DeviceStatus from the message
+        // Parse timestamp and convert from UTC to local time (GMT+8)
+        final utcTimestamp = DateTime.parse(jsonData['timestamp'] as String);
+        final localTimestamp = utcTimestamp.toLocal();
+        
         final status = DeviceStatus(
           device: _parseDeviceType(deviceType),
           action: DeviceStatus.parseDeviceAction(jsonData['status'] as String),
-          timestamp: DateTime.parse(jsonData['timestamp'] as String),
+          timestamp: localTimestamp,
         );
         print(
             'MqttService: Parsed status - device: ${status.device}, action: ${status.action}');

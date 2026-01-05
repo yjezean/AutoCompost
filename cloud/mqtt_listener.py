@@ -10,6 +10,7 @@ from typing import Optional, Dict
 import paho.mqtt.client as mqtt
 import psycopg2
 import config
+from compost_calculations import get_combined_control_recommendation
 
 # GMT+8 timezone
 GMT8 = timezone(timedelta(hours=8))
@@ -119,12 +120,22 @@ class CompostMQTTListener:
         """Save sensor data to PostgreSQL"""
         try:
             cursor = self.db_conn.cursor()
+            
+            # Ensure timestamp is in GMT+8 timezone before saving
+            timestamp = data['timestamp']
+            if timestamp.tzinfo is None:
+                # If no timezone info, assume GMT+8
+                timestamp = timestamp.replace(tzinfo=GMT8)
+            elif timestamp.tzinfo != GMT8:
+                # Convert to GMT+8 if in different timezone
+                timestamp = timestamp.astimezone(GMT8)
+            
             cursor.execute(
                 """
                 INSERT INTO sensor_data (timestamp, temperature, humidity)
                 VALUES (%s, %s, %s)
                 """,
-                (data['timestamp'], data['temperature'], data['humidity'])
+                (timestamp, data['temperature'], data['humidity'])
             )
             self.db_conn.commit()
             cursor.close()
@@ -186,30 +197,47 @@ class CompostMQTTListener:
             logger.error(f"Error handling device status: {e}")
     
     def check_thresholds_and_control(self, data: Dict):
-        """Check sensor readings against thresholds and publish control commands"""
+        """
+        Check sensor readings against optimal ranges and publish control commands.
+        
+        Optimal ranges for hot aerobic composting:
+        - Temperature: 55-65°C (131-149°F)
+        - Humidity: 50-60% water (by weight)
+        """
         temp = data['temperature']
         humidity = data['humidity']
         
-        # Fan control logic (relay controls the fan)
-        fan_should_be_on = (temp > config.FAN_TEMP_THRESHOLD) or (humidity > config.FAN_HUMIDITY_THRESHOLD)
-        current_fan_state = data.get('fan_state', self.last_fan_state)
+        # Get combined control recommendations using optimal ranges
+        control = get_combined_control_recommendation(temp, humidity)
         
-        if fan_should_be_on and current_fan_state != 'ON':
+        current_fan_state = data.get('fan_state', self.last_fan_state)
+        current_lid_state = data.get('lid_state', self.last_lid_state)
+        
+        # Fan control
+        if control['fan_action'] == 'ON' and current_fan_state != 'ON':
             self.publish_command(config.MQTT_CMD_FAN_TOPIC, {"action": "ON"})
             self.last_fan_state = 'ON'
-            logger.info(f"Fan ON triggered: Temp={temp:.2f}°C, Hum={humidity:.2f}%")
-        elif not fan_should_be_on and current_fan_state == 'ON':
+            logger.info(f"Fan ON: {control['message']}")
+        elif control['fan_action'] == 'OFF' and current_fan_state == 'ON':
             self.publish_command(config.MQTT_CMD_FAN_TOPIC, {"action": "OFF"})
             self.last_fan_state = 'OFF'
-            logger.info(f"Fan OFF triggered: Temp={temp:.2f}°C, Hum={humidity:.2f}%")
+            logger.info(f"Fan OFF: {control['message']}")
+        elif control['fan_action'] is None:
+            # No change needed - maintain current state
+            logger.debug(f"Fan state maintained: {control['message']}")
         
-        # Lid control logic (emergency release)
-        if temp > config.LID_TEMP_THRESHOLD:
-            current_lid_state = data.get('lid_state', self.last_lid_state)
-            if current_lid_state != 'OPEN':
-                self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "OPEN"})
-                self.last_lid_state = 'OPEN'
-                logger.warning(f"Lid OPEN triggered (emergency): Temp={temp:.2f}°C")
+        # Lid control (primarily for temperature emergency cooling)
+        if control['lid_action'] == 'OPEN' and current_lid_state != 'OPEN':
+            self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "OPEN"})
+            self.last_lid_state = 'OPEN'
+            logger.warning(f"Lid OPEN: {control['temp_message']}")
+        elif control['lid_action'] == 'CLOSED' and current_lid_state != 'CLOSED':
+            self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "CLOSED"})
+            self.last_lid_state = 'CLOSED'
+            logger.info(f"Lid CLOSED: {control['temp_message']}")
+        elif control['lid_action'] is None:
+            # No change needed - maintain current state
+            logger.debug(f"Lid state maintained: {control['temp_message']}")
     
     def publish_command(self, topic: str, payload: Dict):
         """Publish command to MQTT topic"""

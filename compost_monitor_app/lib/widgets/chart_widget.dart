@@ -182,6 +182,11 @@ class ChartWidget extends StatelessWidget {
                   );
                 }).toList();
               },
+              tooltipPadding: const EdgeInsets.all(8),
+              tooltipMargin: 8,
+              tooltipRoundedRadius: 8,
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
             ),
           ),
         ),

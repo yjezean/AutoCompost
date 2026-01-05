@@ -32,10 +32,20 @@ MQTT_STATUS_FAN_TOPIC = "compost/status/fan"
 MQTT_STATUS_LID_TOPIC = "compost/status/lid"
 MQTT_STATUS_STIRRER_TOPIC = "compost/status/stirrer"
 
-# Control thresholds
+# Control thresholds (for backward compatibility - new logic uses optimal ranges)
 FAN_TEMP_THRESHOLD = float(os.getenv("FAN_TEMP_THRESHOLD", "60.0"))
 FAN_HUMIDITY_THRESHOLD = float(os.getenv("FAN_HUMIDITY_THRESHOLD", "80.0"))
 LID_TEMP_THRESHOLD = float(os.getenv("LID_TEMP_THRESHOLD", "65.0"))
+
+# Optimal ranges for hot aerobic composting
+# Temperature: 55-65°C (131-149°F) for hot aerobic composting
+TEMP_OPTIMAL_MIN = float(os.getenv("TEMP_OPTIMAL_MIN", "55.0"))
+TEMP_OPTIMAL_MAX = float(os.getenv("TEMP_OPTIMAL_MAX", "65.0"))
+TEMP_CRITICAL_HIGH = float(os.getenv("TEMP_CRITICAL_HIGH", "70.0"))  # Emergency threshold
+
+# Humidity: 50-60% water (by weight)
+HUMIDITY_OPTIMAL_MIN = float(os.getenv("HUMIDITY_OPTIMAL_MIN", "50.0"))
+HUMIDITY_OPTIMAL_MAX = float(os.getenv("HUMIDITY_OPTIMAL_MAX", "60.0"))
 
 # API configuration
 API_HOST = os.getenv("API_HOST", "0.0.0.0")

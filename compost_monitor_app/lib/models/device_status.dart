@@ -27,10 +27,14 @@ class DeviceStatus {
   });
 
   factory DeviceStatus.fromJson(Map<String, dynamic> json) {
+    // Parse timestamp and convert from UTC to local time (GMT+8)
+    final utcTimestamp = DateTime.parse(json['timestamp']);
+    final localTimestamp = utcTimestamp.toLocal();
+    
     return DeviceStatus(
       device: _parseDeviceType(json['device'] as String),
       action: parseDeviceAction(json['status'] as String),
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: localTimestamp,
     );
   }
 

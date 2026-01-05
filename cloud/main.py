@@ -16,6 +16,7 @@ import pandas as pd
 import numpy as np
 import config
 import logging
+from compost_calculations import calculate_cn_ratio
 
 # Configure logging
 logging.basicConfig(
@@ -70,11 +71,41 @@ class CompostBatch(BaseModel):
     projected_end_date: datetime
     status: str
     created_at: datetime
+    green_waste_kg: Optional[float] = None
+    brown_waste_kg: Optional[float] = None
+    total_volume_liters: Optional[float] = None
+    cn_ratio: Optional[float] = None
+    initial_volume_liters: Optional[float] = None
 
 class CompostBatchCreate(BaseModel):
     start_date: datetime
     projected_end_date: datetime
-    status: str = "active"
+    status: str = "planning"
+    green_waste_kg: Optional[float] = None
+    brown_waste_kg: Optional[float] = None
+    initial_volume_liters: Optional[float] = None
+
+class CompostBatchUpdate(BaseModel):
+    green_waste_kg: Optional[float] = None
+    brown_waste_kg: Optional[float] = None
+    initial_volume_liters: Optional[float] = None
+    status: Optional[str] = None
+
+class CompostMaterial(BaseModel):
+    id: int
+    name: str
+    material_type: str  # 'green' or 'brown'
+    carbon_nitrogen_ratio: float
+    density_kg_per_liter: Optional[float] = None
+    description: Optional[str] = None
+
+class CNRatioResponse(BaseModel):
+    current_ratio: float
+    optimal_ratio: float = 27.5  # Target: 25-30:1
+    green_waste_kg: float
+    brown_waste_kg: float
+    suggested_brown_kg: Optional[float] = None
+    status: str  # "optimal", "too_much_green", "too_much_brown", "insufficient_data"
 
 class CompletionStatus(BaseModel):
     status: str  # "active", "completing", "complete"
@@ -114,11 +145,20 @@ async def get_sensor_data(
         conn = get_db_connection()
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         
-        # Calculate start date (use GMT+8 to match stored timestamps)
-        end_date = datetime.now(GMT8)
-        start_date = end_date - timedelta(days=days)
-        
         # Query sensor data
+        # Note: Database timestamps are stored as UTC but actually contain GMT+8 values
+        # So we need to treat them as GMT+8 when querying
+        
+        # Calculate date range in GMT+8
+        end_date_gmt8 = datetime.now(GMT8)
+        start_date_gmt8 = end_date_gmt8 - timedelta(days=days)
+        
+        # Convert to UTC for database query (database thinks it's UTC but it's actually GMT+8)
+        # Since data is stored as GMT+8 values in UTC fields, we subtract 8 hours to match
+        end_date_utc = end_date_gmt8.astimezone(timezone.utc) - timedelta(hours=8)
+        start_date_utc = start_date_gmt8.astimezone(timezone.utc) - timedelta(hours=8)
+        
+        # Try date-filtered query
         cursor.execute(
             """
             SELECT timestamp, temperature, humidity
@@ -126,28 +166,73 @@ async def get_sensor_data(
             WHERE timestamp >= %s AND timestamp <= %s
             ORDER BY timestamp ASC
             """,
-            (start_date, end_date)
+            (start_date_utc, end_date_utc)
         )
         
         rows = cursor.fetchall()
+        
+        # If no data found with date filter, get latest records regardless of date
+        if len(rows) == 0:
+            logger.warning(f"No data found for last {days} days. Using fallback: latest records.")
+            # Get latest records (limit based on days: roughly 1 record per 5 seconds = ~17k per day)
+            limit = min(days * 17280, 10000)  # Max 10k records
+            cursor.execute(
+                """
+                SELECT timestamp, temperature, humidity
+                FROM sensor_data
+                ORDER BY timestamp DESC
+                LIMIT %s
+                """,
+                (limit,)
+            )
+            rows = cursor.fetchall()
+            # Reverse to get chronological order
+            rows = list(reversed(rows))
+            logger.info(f"Fallback query returned {len(rows)} latest records")
+        
         cursor.close()
         conn.close()
         
         # Convert to list of SensorDataPoint
-        data = [
-            SensorDataPoint(
-                timestamp=row['timestamp'],
+        # Database timestamps are stored as UTC but actually contain GMT+8 time values
+        # Fix: Convert to real UTC (subtract 8h), return as UTC
+        # Frontend will automatically convert UTC to local timezone (GMT+8) = correct display
+        data = []
+        for row in rows:
+            timestamp = row['timestamp']
+            
+            # The timestamp is stored as UTC but the time value is actually GMT+8
+            # Example: Database has 19:11:36+00, but 19:11 is actually GMT+8 time
+            # Real UTC time should be: 19:11 - 8 = 11:11 UTC
+            # Return as UTC: 11:11:36+00:00
+            # Frontend (GMT+8) will convert: 11:11 UTC + 8 = 19:11 GMT+8 (correct!)
+            if timestamp.tzinfo is None:
+                # If no timezone, assume UTC
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            
+            # Convert from "fake UTC" (which is actually GMT+8) to real UTC
+            if timestamp.tzinfo == timezone.utc:
+                # Subtract 8 hours to get actual UTC time
+                # This converts the GMT+8 time value to real UTC
+                timestamp = timestamp - timedelta(hours=8)
+                # Keep as UTC - frontend will convert to local timezone automatically
+            else:
+                # Already in different timezone, convert to UTC
+                timestamp = timestamp.astimezone(timezone.utc)
+            
+            data.append(SensorDataPoint(
+                timestamp=timestamp,
                 temperature=float(row['temperature']),
                 humidity=float(row['humidity'])
-            )
-            for row in rows
-        ]
+            ))
         
         logger.info(f"Retrieved {len(data)} sensor data points for last {days} days")
         return SensorDataResponse(data=data)
         
     except Exception as e:
         logger.error(f"Error retrieving sensor data: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error retrieving sensor data: {str(e)}")
 
 @app.get("/api/v1/compost-batch/current", response_model=CompostBatch)
@@ -161,7 +246,9 @@ async def get_current_batch():
         
         cursor.execute(
             """
-            SELECT id, start_date, projected_end_date, status, created_at
+            SELECT id, start_date, projected_end_date, status, created_at,
+                   green_waste_kg, brown_waste_kg, total_volume_liters, 
+                   cn_ratio, initial_volume_liters
             FROM compost_batch
             WHERE status = 'active'
             ORDER BY created_at DESC
@@ -181,7 +268,12 @@ async def get_current_batch():
             start_date=row['start_date'],
             projected_end_date=row['projected_end_date'],
             status=row['status'],
-            created_at=row['created_at']
+            created_at=row['created_at'],
+            green_waste_kg=float(row['green_waste_kg']) if row['green_waste_kg'] else None,
+            brown_waste_kg=float(row['brown_waste_kg']) if row['brown_waste_kg'] else None,
+            total_volume_liters=float(row['total_volume_liters']) if row['total_volume_liters'] else None,
+            cn_ratio=float(row['cn_ratio']) if row['cn_ratio'] else None,
+            initial_volume_liters=float(row['initial_volume_liters']) if row['initial_volume_liters'] else None
         )
         
     except HTTPException:
@@ -211,11 +303,15 @@ async def create_compost_batch(batch: CompostBatchCreate):
         # Insert new batch
         cursor.execute(
             """
-            INSERT INTO compost_batch (start_date, projected_end_date, status)
-            VALUES (%s, %s, %s)
-            RETURNING id, start_date, projected_end_date, status, created_at
+            INSERT INTO compost_batch (start_date, projected_end_date, status, 
+                                      green_waste_kg, brown_waste_kg, initial_volume_liters)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, start_date, projected_end_date, status, created_at,
+                      green_waste_kg, brown_waste_kg, total_volume_liters, 
+                      cn_ratio, initial_volume_liters
             """,
-            (batch.start_date, batch.projected_end_date, batch.status)
+            (batch.start_date, batch.projected_end_date, batch.status,
+             batch.green_waste_kg, batch.brown_waste_kg, batch.initial_volume_liters)
         )
         
         row = cursor.fetchone()
@@ -230,7 +326,12 @@ async def create_compost_batch(batch: CompostBatchCreate):
             start_date=row[1],
             projected_end_date=row[2],
             status=row[3],
-            created_at=row[4]
+            created_at=row[4],
+            green_waste_kg=float(row[5]) if row[5] else None,
+            brown_waste_kg=float(row[6]) if row[6] else None,
+            total_volume_liters=float(row[7]) if row[7] else None,
+            cn_ratio=float(row[8]) if row[8] else None,
+            initial_volume_liters=float(row[9]) if row[9] else None
         )
         
     except Exception as e:
@@ -267,9 +368,9 @@ async def get_completion_status(
         if not batch:
             raise HTTPException(status_code=404, detail="No active compost batch found")
         
-        # Get temperature data for analysis (use GMT+8 to match stored timestamps)
-        end_date = datetime.now(GMT8)
-        start_date = end_date - timedelta(days=min(days, 30))  # Analyze last 30 days max
+        # Get temperature data for analysis (convert GMT+8 to UTC for query)
+        end_date_utc = datetime.now(GMT8).astimezone(timezone.utc)
+        start_date_utc = end_date_utc - timedelta(days=min(days, 30))  # Analyze last 30 days max
         
         cursor.execute(
             """
@@ -278,7 +379,7 @@ async def get_completion_status(
             WHERE timestamp >= %s AND timestamp <= %s
             ORDER BY timestamp ASC
             """,
-            (start_date, end_date)
+            (start_date_utc, end_date_utc)
         )
         
         rows = cursor.fetchall()
@@ -359,6 +460,432 @@ async def get_completion_status(
     except Exception as e:
         logger.error(f"Error calculating completion status: {e}")
         raise HTTPException(status_code=500, detail=f"Error calculating completion status: {str(e)}")
+
+# Phase 2: Multi-Cycle Management Endpoints
+
+@app.get("/api/v1/cycles", response_model=List[CompostBatch])
+async def get_cycles():
+    """
+    Get all compost cycles (all statuses)
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            """
+            SELECT id, start_date, projected_end_date, status, created_at,
+                   green_waste_kg, brown_waste_kg, total_volume_liters, 
+                   cn_ratio, initial_volume_liters
+            FROM compost_batch
+            ORDER BY created_at DESC
+            """
+        )
+        
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        cycles = [
+            CompostBatch(
+                id=row['id'],
+                start_date=row['start_date'],
+                projected_end_date=row['projected_end_date'],
+                status=row['status'],
+                created_at=row['created_at'],
+                green_waste_kg=float(row['green_waste_kg']) if row['green_waste_kg'] else None,
+                brown_waste_kg=float(row['brown_waste_kg']) if row['brown_waste_kg'] else None,
+                total_volume_liters=float(row['total_volume_liters']) if row['total_volume_liters'] else None,
+                cn_ratio=float(row['cn_ratio']) if row['cn_ratio'] else None,
+                initial_volume_liters=float(row['initial_volume_liters']) if row['initial_volume_liters'] else None
+            )
+            for row in rows
+        ]
+        
+        return cycles
+        
+    except Exception as e:
+        logger.error(f"Error retrieving cycles: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving cycles: {str(e)}")
+
+@app.get("/api/v1/cycles/{cycle_id}", response_model=CompostBatch)
+async def get_cycle(cycle_id: int):
+    """
+    Get a specific compost cycle by ID
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            """
+            SELECT id, start_date, projected_end_date, status, created_at,
+                   green_waste_kg, brown_waste_kg, total_volume_liters, 
+                   cn_ratio, initial_volume_liters
+            FROM compost_batch
+            WHERE id = %s
+            """,
+            (cycle_id,)
+        )
+        
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Cycle with ID {cycle_id} not found")
+        
+        return CompostBatch(
+            id=row['id'],
+            start_date=row['start_date'],
+            projected_end_date=row['projected_end_date'],
+            status=row['status'],
+            created_at=row['created_at'],
+            green_waste_kg=float(row['green_waste_kg']) if row['green_waste_kg'] else None,
+            brown_waste_kg=float(row['brown_waste_kg']) if row['brown_waste_kg'] else None,
+            total_volume_liters=float(row['total_volume_liters']) if row['total_volume_liters'] else None,
+            cn_ratio=float(row['cn_ratio']) if row['cn_ratio'] else None,
+            initial_volume_liters=float(row['initial_volume_liters']) if row['initial_volume_liters'] else None
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving cycle: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving cycle: {str(e)}")
+
+@app.post("/api/v1/cycles", response_model=CompostBatch)
+async def create_cycle(batch: CompostBatchCreate):
+    """
+    Create a new compost cycle
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Insert new cycle
+        cursor.execute(
+            """
+            INSERT INTO compost_batch (start_date, projected_end_date, status, 
+                                      green_waste_kg, brown_waste_kg, initial_volume_liters)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, start_date, projected_end_date, status, created_at,
+                      green_waste_kg, brown_waste_kg, total_volume_liters, 
+                      cn_ratio, initial_volume_liters
+            """,
+            (batch.start_date, batch.projected_end_date, batch.status,
+             batch.green_waste_kg, batch.brown_waste_kg, batch.initial_volume_liters)
+        )
+        
+        row = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logger.info(f"Created new compost cycle: ID={row[0]}")
+        
+        return CompostBatch(
+            id=row[0],
+            start_date=row[1],
+            projected_end_date=row[2],
+            status=row[3],
+            created_at=row[4],
+            green_waste_kg=float(row[5]) if row[5] else None,
+            brown_waste_kg=float(row[6]) if row[6] else None,
+            total_volume_liters=float(row[7]) if row[7] else None,
+            cn_ratio=float(row[8]) if row[8] else None,
+            initial_volume_liters=float(row[9]) if row[9] else None
+        )
+        
+    except Exception as e:
+        logger.error(f"Error creating cycle: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        raise HTTPException(status_code=500, detail=f"Error creating cycle: {str(e)}")
+
+@app.put("/api/v1/cycles/{cycle_id}", response_model=CompostBatch)
+async def update_cycle(cycle_id: int, update: CompostBatchUpdate):
+    """
+    Update a compost cycle (waste amounts, volume, status)
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Build dynamic UPDATE query
+        updates = []
+        values = []
+        
+        if update.green_waste_kg is not None:
+            updates.append("green_waste_kg = %s")
+            values.append(update.green_waste_kg)
+        if update.brown_waste_kg is not None:
+            updates.append("brown_waste_kg = %s")
+            values.append(update.brown_waste_kg)
+        if update.initial_volume_liters is not None:
+            updates.append("initial_volume_liters = %s")
+            values.append(update.initial_volume_liters)
+        if update.status is not None:
+            updates.append("status = %s")
+            values.append(update.status)
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        values.append(cycle_id)
+        query = f"""
+            UPDATE compost_batch
+            SET {', '.join(updates)}
+            WHERE id = %s
+            RETURNING id, start_date, projected_end_date, status, created_at,
+                      green_waste_kg, brown_waste_kg, total_volume_liters, 
+                      cn_ratio, initial_volume_liters
+        """
+        
+        cursor.execute(query, values)
+        row = cursor.fetchone()
+        
+        if not row:
+            cursor.close()
+            conn.close()
+            raise HTTPException(status_code=404, detail=f"Cycle with ID {cycle_id} not found")
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logger.info(f"Updated compost cycle: ID={cycle_id}")
+        
+        return CompostBatch(
+            id=row['id'],
+            start_date=row['start_date'],
+            projected_end_date=row['projected_end_date'],
+            status=row['status'],
+            created_at=row['created_at'],
+            green_waste_kg=float(row['green_waste_kg']) if row['green_waste_kg'] else None,
+            brown_waste_kg=float(row['brown_waste_kg']) if row['brown_waste_kg'] else None,
+            total_volume_liters=float(row['total_volume_liters']) if row['total_volume_liters'] else None,
+            cn_ratio=float(row['cn_ratio']) if row['cn_ratio'] else None,
+            initial_volume_liters=float(row['initial_volume_liters']) if row['initial_volume_liters'] else None
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating cycle: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        raise HTTPException(status_code=500, detail=f"Error updating cycle: {str(e)}")
+
+@app.put("/api/v1/cycles/{cycle_id}/activate")
+async def activate_cycle(cycle_id: int):
+    """
+    Set a cycle as active (deactivates all other cycles)
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # First, deactivate all active cycles
+        cursor.execute(
+            """
+            UPDATE compost_batch
+            SET status = 'completed'
+            WHERE status = 'active'
+            """
+        )
+        
+        # Activate the specified cycle
+        cursor.execute(
+            """
+            UPDATE compost_batch
+            SET status = 'active'
+            WHERE id = %s
+            RETURNING id
+            """,
+            (cycle_id,)
+        )
+        
+        row = cursor.fetchone()
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Cycle with ID {cycle_id} not found")
+        
+        logger.info(f"Activated compost cycle: ID={cycle_id}")
+        return {"message": f"Cycle {cycle_id} activated successfully", "cycle_id": cycle_id}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error activating cycle: {e}")
+        if conn:
+            conn.rollback()
+            conn.close()
+        raise HTTPException(status_code=500, detail=f"Error activating cycle: {str(e)}")
+
+# Import calculation utilities
+from compost_calculations import calculate_cn_ratio
+
+@app.post("/api/v1/cycles/{cycle_id}/calculate-ratio", response_model=CNRatioResponse)
+async def calculate_cycle_ratio(cycle_id: int):
+    """
+    Calculate C:N ratio for a specific cycle
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            """
+            SELECT green_waste_kg, brown_waste_kg
+            FROM compost_batch
+            WHERE id = %s
+            """,
+            (cycle_id,)
+        )
+        
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Cycle with ID {cycle_id} not found")
+        
+        green_kg = float(row['green_waste_kg']) if row['green_waste_kg'] else 0.0
+        brown_kg = float(row['brown_waste_kg']) if row['brown_waste_kg'] else 0.0
+        
+        if green_kg == 0 and brown_kg == 0:
+            raise HTTPException(status_code=400, detail="Cycle has no waste data. Please add green and brown waste amounts first.")
+        
+        result = calculate_cn_ratio(green_kg, brown_kg)
+        
+        # Update the cycle's cn_ratio in database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE compost_batch
+            SET cn_ratio = %s
+            WHERE id = %s
+            """,
+            (result['current_ratio'], cycle_id)
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return CNRatioResponse(**result)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating C:N ratio: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating C:N ratio: {str(e)}")
+
+@app.get("/api/v1/cycles/{cycle_id}/progress")
+async def get_cycle_progress(cycle_id: int):
+    """
+    Get volume-based progress for a cycle
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            """
+            SELECT id, start_date, projected_end_date, status,
+                   initial_volume_liters, total_volume_liters
+            FROM compost_batch
+            WHERE id = %s
+            """,
+            (cycle_id,)
+        )
+        
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Cycle with ID {cycle_id} not found")
+        
+        initial_volume = float(row['initial_volume_liters']) if row['initial_volume_liters'] else None
+        current_volume = float(row['total_volume_liters']) if row['total_volume_liters'] else None
+        
+        # Calculate progress based on volume reduction
+        if initial_volume and current_volume:
+            volume_reduction = ((initial_volume - current_volume) / initial_volume) * 100
+            volume_progress = min(100.0, max(0.0, volume_reduction))
+        else:
+            volume_progress = None
+        
+        # Time-based progress
+        start_date = row['start_date']
+        end_date = row['projected_end_date']
+        current_time = datetime.now(GMT8)
+        
+        total_duration = (end_date - start_date).total_seconds()
+        elapsed = (current_time - start_date).total_seconds()
+        time_progress = min(100.0, (elapsed / total_duration) * 100) if total_duration > 0 else 0
+        
+        return {
+            "cycle_id": cycle_id,
+            "time_progress": round(time_progress, 2),
+            "volume_progress": round(volume_progress, 2) if volume_progress else None,
+            "initial_volume_liters": initial_volume,
+            "current_volume_liters": current_volume,
+            "estimated_completion_date": end_date.isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting cycle progress: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting cycle progress: {str(e)}")
+
+@app.get("/api/v1/materials", response_model=List[CompostMaterial])
+async def get_materials():
+    """
+    Get list of all compost materials with their C:N ratios
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            """
+            SELECT id, name, material_type, carbon_nitrogen_ratio, 
+                   density_kg_per_liter, description
+            FROM compost_materials
+            ORDER BY material_type, name
+            """
+        )
+        
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        materials = [
+            CompostMaterial(
+                id=row['id'],
+                name=row['name'],
+                material_type=row['material_type'],
+                carbon_nitrogen_ratio=float(row['carbon_nitrogen_ratio']),
+                density_kg_per_liter=float(row['density_kg_per_liter']) if row['density_kg_per_liter'] else None,
+                description=row['description']
+            )
+            for row in rows
+        ]
+        
+        return materials
+        
+    except Exception as e:
+        logger.error(f"Error retrieving materials: {e}")
+        raise HTTPException(status_code=500, detail=f"Error retrieving materials: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

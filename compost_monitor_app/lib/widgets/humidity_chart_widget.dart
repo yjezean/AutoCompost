@@ -148,6 +148,11 @@ class HumidityChartWidget extends StatelessWidget {
                   ),
                 ];
               },
+              tooltipPadding: const EdgeInsets.all(8),
+              tooltipMargin: 8,
+              tooltipRoundedRadius: 8,
+              fitInsideHorizontally: true,
+              fitInsideVertically: true,
             ),
           ),
         ),

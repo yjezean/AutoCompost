@@ -10,10 +10,14 @@ class SensorData {
   });
 
   factory SensorData.fromJson(Map<String, dynamic> json) {
+    // Parse timestamp and convert from UTC to local time (GMT+8)
+    final utcTimestamp = DateTime.parse(json['timestamp']);
+    final localTimestamp = utcTimestamp.toLocal();
+    
     return SensorData(
       temperature: (json['temperature'] as num).toDouble(),
       humidity: (json['humidity'] as num).toDouble(),
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: localTimestamp,
     );
   }
 
