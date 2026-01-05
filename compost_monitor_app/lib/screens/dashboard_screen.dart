@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/sensor_provider.dart';
 import '../providers/compost_batch_provider.dart';
+import '../providers/device_control_provider.dart';
+import '../models/device_status.dart';
 import '../widgets/temperature_gauge.dart';
 import '../widgets/humidity_gauge.dart';
 import '../widgets/batch_info_card.dart';
@@ -25,8 +27,8 @@ class DashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer2<SensorProvider, CompostBatchProvider>(
-        builder: (context, sensorProvider, batchProvider, child) {
+      body: Consumer3<SensorProvider, CompostBatchProvider, DeviceControlProvider>(
+        builder: (context, sensorProvider, batchProvider, deviceProvider, child) {
           final sensorData = sensorProvider.currentData;
           final batch = batchProvider.currentBatch;
           final completionStatus = batchProvider.completionStatus;
@@ -126,9 +128,24 @@ class DashboardScreen extends StatelessWidget {
                               style: Theme.of(context).textTheme.headlineSmall,
                             ),
                             const SizedBox(height: 12),
-                            _buildStatusRow(context, 'Fan', 'OFF'), // Will be connected to device control provider
-                            _buildStatusRow(context, 'Lid', 'CLOSED'),
-                            _buildStatusRow(context, 'Stirrer', 'STOPPED'),
+                            _buildStatusRow(
+                              context,
+                              'Fan',
+                              _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.fan)),
+                              deviceProvider.isDeviceActive(DeviceType.fan),
+                            ),
+                            _buildStatusRow(
+                              context,
+                              'Lid',
+                              _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.lid)),
+                              deviceProvider.isDeviceActive(DeviceType.lid),
+                            ),
+                            _buildStatusRow(
+                              context,
+                              'Stirrer',
+                              _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.stirrer)),
+                              deviceProvider.isDeviceActive(DeviceType.stirrer),
+                            ),
                           ],
                         ),
                       ),
@@ -145,7 +162,12 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatusRow(BuildContext context, String device, String status) {
+  Widget _buildStatusRow(
+    BuildContext context,
+    String device,
+    String status,
+    bool isActive,
+  ) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -155,16 +177,50 @@ class DashboardScreen extends StatelessWidget {
             device,
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          Text(
-            status,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: AppTheme.textSecondary,
+          Row(
+            children: [
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isActive ? AppTheme.success : AppTheme.textSecondary,
                 ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                status,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                      color: isActive ? AppTheme.success : AppTheme.textSecondary,
+                    ),
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  String _getDeviceStatusText(DeviceAction action) {
+    switch (action) {
+      case DeviceAction.on:
+        return 'ON';
+      case DeviceAction.off:
+        return 'OFF';
+      case DeviceAction.open:
+        return 'OPEN';
+      case DeviceAction.close:
+        return 'CLOSED';
+      case DeviceAction.start:
+        return 'START';
+      case DeviceAction.stop:
+        return 'STOP';
+      case DeviceAction.running:
+        return 'RUNNING';
+      case DeviceAction.stopped:
+        return 'STOPPED';
+    }
   }
 }
 
