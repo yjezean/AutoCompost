@@ -5,6 +5,8 @@ Subscribes to sensor data from ESP32, saves to PostgreSQL, and implements contro
 """
 import json
 import logging
+import threading
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict
 import paho.mqtt.client as mqtt
@@ -50,6 +52,13 @@ class CompostMQTTListener:
         self.last_fan_state = None
         self.last_lid_state = None
         self.last_stirrer_state = None
+        self.stirrer_timer = None
+        self.stirrer_running = False
+        self.stirrer_lock = threading.Lock()
+        
+        # Stirrer periodic control settings
+        self.STIRRER_ON_DURATION = 300  # 5 minutes ON
+        self.STIRRER_OFF_DURATION = 1800  # 30 minutes OFF
         
     def connect_database(self):
         """Connect to PostgreSQL database"""
@@ -166,6 +175,22 @@ class CompostMQTTListener:
             status = status_data.get('status', '').upper()
             timestamp_str = status_data.get('timestamp')
             
+            # Normalize status values
+            # Map common status values to standard format
+            status_map = {
+                'RUNNING': 'ON',
+                'START': 'ON',
+                'STOPPED': 'OFF',
+                'STOP': 'OFF',
+                'OPENED': 'OPEN',
+                'CLOSED': 'CLOSE',
+            }
+            normalized_status = status_map.get(status, status)
+            
+            # For lid, normalize CLOSE to CLOSED for consistency
+            if device_type == 'lid' and normalized_status == 'CLOSE':
+                normalized_status = 'CLOSED'
+            
             # Parse timestamp
             if timestamp_str:
                 try:
@@ -178,23 +203,19 @@ class CompostMQTTListener:
             
             # Update internal state tracking
             if device_type == 'fan':
-                self.last_fan_state = status
+                self.last_fan_state = normalized_status
             elif device_type == 'lid':
-                self.last_lid_state = status
+                self.last_lid_state = normalized_status
             elif device_type == 'stirrer':
-                self.last_stirrer_state = status
+                self.last_stirrer_state = normalized_status
             
             # Log the status update
-            logger.info(f"Device status update - {device_type}: {status} at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
-            
-            # Optional: Save to device_events table if it exists
-            # This would require the device_events table to be created in the database
-            # For now, we just log the status updates
+            logger.info(f"[DEVICE STATUS] {device_type}: {normalized_status} (from: {status})")
             
         except json.JSONDecodeError as e:
-            logger.error(f"Error parsing device status JSON: {e}")
+            logger.error(f"[DEVICE STATUS] JSON parse error: {e}, message: {message}")
         except Exception as e:
-            logger.error(f"Error handling device status: {e}")
+            logger.error(f"[DEVICE STATUS] Error handling status: {e}")
     
     def check_thresholds_and_control(self, data: Dict):
         """
@@ -210,43 +231,112 @@ class CompostMQTTListener:
         # Get combined control recommendations using optimal ranges
         control = get_combined_control_recommendation(temp, humidity)
         
-        current_fan_state = data.get('fan_state', self.last_fan_state)
-        current_lid_state = data.get('lid_state', self.last_lid_state)
+        # Get current device states from sensor data or last known state
+        # Try multiple field names (ESP32 might send different field names)
+        current_fan_state = data.get('fan_state') or data.get('relay') or data.get('fan')
+        if current_fan_state:
+            current_fan_state = str(current_fan_state).strip().upper()
+        else:
+            current_fan_state = self.last_fan_state or 'UNKNOWN'
         
-        # Fan control
-        if control['fan_action'] == 'ON' and current_fan_state != 'ON':
-            self.publish_command(config.MQTT_CMD_FAN_TOPIC, {"action": "ON"})
-            self.last_fan_state = 'ON'
-            logger.info(f"Fan ON: {control['message']}")
-        elif control['fan_action'] == 'OFF' and current_fan_state == 'ON':
-            self.publish_command(config.MQTT_CMD_FAN_TOPIC, {"action": "OFF"})
-            self.last_fan_state = 'OFF'
-            logger.info(f"Fan OFF: {control['message']}")
-        elif control['fan_action'] is None:
-            # No change needed - maintain current state
-            logger.debug(f"Fan state maintained: {control['message']}")
+        current_lid_state = data.get('lid_state') or data.get('lid')
+        if current_lid_state:
+            current_lid_state = str(current_lid_state).strip().upper()
+        else:
+            current_lid_state = self.last_lid_state or 'UNKNOWN'
         
-        # Lid control (primarily for temperature emergency cooling)
-        if control['lid_action'] == 'OPEN' and current_lid_state != 'OPEN':
-            self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "OPEN"})
-            self.last_lid_state = 'OPEN'
-            logger.warning(f"Lid OPEN: {control['temp_message']}")
-        elif control['lid_action'] == 'CLOSED' and current_lid_state != 'CLOSED':
-            self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "CLOSED"})
-            self.last_lid_state = 'CLOSED'
-            logger.info(f"Lid CLOSED: {control['temp_message']}")
-        elif control['lid_action'] is None:
-            # No change needed - maintain current state
-            logger.debug(f"Lid state maintained: {control['temp_message']}")
+        # Log control decision
+        logger.info(f"[CONTROL] Temp: {temp:.1f}°C, Humidity: {humidity:.1f}%")
+        logger.info(f"[CONTROL] Fan: {control['fan_action']} (current: {current_fan_state}) | Lid: {control['lid_action']} (current: {current_lid_state})")
+        logger.info(f"[CONTROL] Reason - Temp: {control['temp_status']}, Humidity: {control['humidity_status']}")
+        
+        # Fan control - send command if action is required and state differs
+        if control['fan_action'] == 'ON':
+            if current_fan_state != 'ON':
+                self.publish_command(config.MQTT_CMD_FAN_TOPIC, {"action": "ON"})
+                self.last_fan_state = 'ON'
+                logger.warning(f"[CONTROL] ✓ Fan ON - {control['humidity_message'] if control['humidity_status'] == 'too_high' else control['temp_message']}")
+            else:
+                logger.debug(f"[CONTROL] Fan already ON, skipping")
+        elif control['fan_action'] == 'OFF':
+            if current_fan_state == 'ON':
+                self.publish_command(config.MQTT_CMD_FAN_TOPIC, {"action": "OFF"})
+                self.last_fan_state = 'OFF'
+                logger.info(f"[CONTROL] ✓ Fan OFF - {control['message']}")
+            else:
+                logger.debug(f"[CONTROL] Fan already OFF, skipping")
+        
+        # Lid control - send command if action is required and state differs
+        if control['lid_action'] == 'OPEN':
+            if current_lid_state != 'OPEN':
+                self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "OPEN"})
+                self.last_lid_state = 'OPEN'
+                logger.warning(f"[CONTROL] ✓ Lid OPEN - {control['message']}")
+            else:
+                logger.debug(f"[CONTROL] Lid already OPEN, skipping")
+        elif control['lid_action'] == 'CLOSED':
+            if current_lid_state == 'OPEN':
+                self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "CLOSED"})
+                self.last_lid_state = 'CLOSED'
+                logger.info(f"[CONTROL] ✓ Lid CLOSED - {control['message']}")
+            else:
+                logger.debug(f"[CONTROL] Lid already CLOSED, skipping")
     
     def publish_command(self, topic: str, payload: Dict):
         """Publish command to MQTT topic"""
+        if not self.mqtt_client or not self.mqtt_client.is_connected():
+            logger.error(f"[CONTROL] Cannot publish - MQTT client not connected")
+            return
+        
         try:
             message = json.dumps(payload)
-            self.mqtt_client.publish(topic, message)
-            logger.debug(f"Published command to {topic}: {message}")
+            result = self.mqtt_client.publish(topic, message)
+            if result.rc == 0:
+                logger.info(f"[CONTROL] ✓ Published to {topic}: {message}")
+            else:
+                logger.error(f"[CONTROL] Failed to publish to {topic}: rc={result.rc}")
         except Exception as e:
-            logger.error(f"Error publishing command: {e}")
+            logger.error(f"[CONTROL] Error publishing to {topic}: {e}")
+    
+    def start_periodic_stirrer(self):
+        """Start periodic stirrer control (ON for 5 min, OFF for 30 min)"""
+        def stirrer_cycle():
+            while True:
+                try:
+                    # Turn stirrer ON
+                    with self.stirrer_lock:
+                        if self.mqtt_client and self.mqtt_client.is_connected():
+                            self.publish_command(config.MQTT_CMD_STIRRER_TOPIC, {"action": "START"})
+                            self.last_stirrer_state = 'RUNNING'
+                            logger.info(f"[STIRRER] Starting periodic cycle - ON for {self.STIRRER_ON_DURATION}s")
+                    
+                    # Wait for ON duration
+                    time.sleep(self.STIRRER_ON_DURATION)
+                    
+                    # Turn stirrer OFF
+                    with self.stirrer_lock:
+                        if self.mqtt_client and self.mqtt_client.is_connected():
+                            self.publish_command(config.MQTT_CMD_STIRRER_TOPIC, {"action": "STOP"})
+                            self.last_stirrer_state = 'STOPPED'
+                            logger.info(f"[STIRRER] Stopping - OFF for {self.STIRRER_OFF_DURATION}s")
+                    
+                    # Wait for OFF duration
+                    time.sleep(self.STIRRER_OFF_DURATION)
+                    
+                except Exception as e:
+                    logger.error(f"[STIRRER] Error in periodic cycle: {e}")
+                    time.sleep(60)  # Wait 1 minute before retrying
+        
+        if not self.stirrer_running:
+            self.stirrer_running = True
+            self.stirrer_timer = threading.Thread(target=stirrer_cycle, daemon=True)
+            self.stirrer_timer.start()
+            logger.info("[STIRRER] Periodic stirrer control started")
+    
+    def stop_periodic_stirrer(self):
+        """Stop periodic stirrer control"""
+        self.stirrer_running = False
+        logger.info("[STIRRER] Periodic stirrer control stopped")
     
     def on_connect(self, client, userdata, flags, rc):
         """Callback when MQTT client connects"""
@@ -260,6 +350,9 @@ class CompostMQTTListener:
             client.subscribe("compost/status/lid")
             client.subscribe("compost/status/stirrer")
             logger.info("Subscribed to device status topics: compost/status/fan, compost/status/lid, compost/status/stirrer")
+            
+            # Start periodic stirrer control
+            self.start_periodic_stirrer()
         else:
             logger.error(f"Failed to connect to MQTT broker, return code: {rc}")
     
@@ -268,19 +361,26 @@ class CompostMQTTListener:
         try:
             topic = msg.topic
             message = msg.payload.decode('utf-8')
-            logger.debug(f"Received message on {topic}: {message}")
             
-            # Parse JSON message
-            data = self.parse_json_message(message)
+            # Route device status updates to handle_device_status
+            if topic.startswith('compost/status/'):
+                self.handle_device_status(topic, message)
+                return
             
-            if data:
-                # Save to database (includes logging with device states)
-                self.save_sensor_data(data)
+            # For sensor data, parse and process
+            if topic == 'compost/sensor/data':
+                data = self.parse_json_message(message)
                 
-                # Check thresholds and control devices
-                self.check_thresholds_and_control(data)
+                if data:
+                    # Save to database (includes logging with device states)
+                    self.save_sensor_data(data)
+                    
+                    # Check thresholds and control devices
+                    self.check_thresholds_and_control(data)
+                else:
+                    logger.warning(f"Could not parse sensor data message: {message}")
             else:
-                logger.warning(f"Could not parse message: {message}")
+                logger.debug(f"Received message on unknown topic {topic}: {message}")
                 
         except Exception as e:
             logger.error(f"Error processing message: {e}")

@@ -133,21 +133,24 @@ def check_humidity_control(humidity: float, optimal_min: float = 50.0, optimal_m
     Returns:
         Dictionary with control recommendations:
         - fan_action: "ON", "OFF", or None (no change needed)
+        - lid_action: "OPEN", "CLOSED", or None (for high humidity)
         - status: "optimal", "too_low", "too_high"
         - message: Human-readable status message
     """
-    # Too high - need dehumidification (fan on)
+    # Too high - need dehumidification (fan on, lid open)
     if humidity > optimal_max:
         return {
             "fan_action": "ON",
+            "lid_action": "OPEN",  # Open lid to help reduce humidity
             "status": "too_high",
-            "message": f"Humidity {humidity:.1f}% above optimal range (50-60%) - Dehumidification needed"
+            "message": f"Humidity {humidity:.1f}% above optimal range (50-60%) - Dehumidification needed (Fan ON, Lid OPEN)"
         }
     
-    # Too low - need moisture (fan off to retain moisture)
+    # Too low - need moisture (fan off to retain moisture, lid closed)
     if humidity < optimal_min:
         return {
             "fan_action": "OFF",
+            "lid_action": "CLOSED",  # Close lid to retain moisture
             "status": "too_low",
             "message": f"Humidity {humidity:.1f}% below optimal range (50-60%) - Moisture retention needed"
         }
@@ -155,6 +158,7 @@ def check_humidity_control(humidity: float, optimal_min: float = 50.0, optimal_m
     # Optimal range
     return {
         "fan_action": None,  # Maintain current state
+        "lid_action": None,   # Maintain current state
         "status": "optimal",
         "message": f"Humidity {humidity:.1f}% within optimal range (50-60%)"
     }
@@ -164,9 +168,16 @@ def get_combined_control_recommendation(temp: float, humidity: float) -> Dict[st
     """
     Get combined control recommendations based on both temperature and humidity.
     
-    Priority:
-    1. Temperature control (critical for composting process)
-    2. Humidity control (secondary)
+    Priority Logic:
+    1. Critical humidity (>60%) takes priority - must reduce humidity even if temp is low
+    2. Critical temperature (>70°C) takes priority - emergency cooling
+    3. Normal temperature control (55-65°C optimal)
+    4. Normal humidity control (50-60% optimal)
+    
+    For conflicting cases (low temp + high humidity):
+    - If humidity > 60%: Prioritize humidity control (fan ON, lid OPEN)
+    - If temp > 70°C: Emergency cooling takes priority
+    - Otherwise: Temperature takes priority
     
     Args:
         temp: Current temperature in Celsius
@@ -183,16 +194,29 @@ def get_combined_control_recommendation(temp: float, humidity: float) -> Dict[st
     temp_control = check_temperature_control(temp)
     humidity_control = check_humidity_control(humidity)
     
-    # Priority: Temperature > Humidity
-    # If temperature requires action, use that
-    # Otherwise, use humidity control
-    if temp_control["fan_action"] is not None:
+    # Critical humidity (>60%) takes priority - must reduce humidity
+    if humidity > 60.0:
+        # High humidity is critical - prioritize humidity control
+        # Fan ON and Lid OPEN to reduce humidity, even if temp is low
+        fan_action = humidity_control["fan_action"]  # Should be "ON"
+        lid_action = humidity_control["lid_action"]  # Should be "OPEN"
+    # Critical temperature (>70°C) takes priority - emergency cooling
+    elif temp > 70.0:
+        # Emergency cooling - temperature takes priority
         fan_action = temp_control["fan_action"]
+        lid_action = temp_control["lid_action"]
+    # Normal priority: Temperature > Humidity
     else:
-        fan_action = humidity_control["fan_action"]
-    
-    # Lid is primarily for temperature control (emergency cooling)
-    lid_action = temp_control["lid_action"]
+        # Standard priority: Temperature takes priority
+        if temp_control["fan_action"] is not None:
+            fan_action = temp_control["fan_action"]
+        else:
+            fan_action = humidity_control["fan_action"]
+        
+        if temp_control["lid_action"] is not None:
+            lid_action = temp_control["lid_action"]
+        else:
+            lid_action = humidity_control["lid_action"]
     
     # Combine messages
     messages = [temp_control["message"], humidity_control["message"]]

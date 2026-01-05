@@ -34,13 +34,15 @@ class DeviceControlProvider with ChangeNotifier {
     // Listen to device status updates
     _statusSubscription = _mqttService.deviceStatusStream.listen(
       (status) {
-        print(
-            'DeviceControlProvider: Received status update - ${status.device}: ${status.action}');
+        final oldState = _deviceStates[status.device];
         _deviceStates[status.device] = status.action;
+        if (oldState != status.action) {
+          print('[DEVICE] ${status.device}: $oldState -> ${status.action}');
+        }
         notifyListeners();
       },
       onError: (error) {
-        print('DeviceControlProvider: Error in status stream: $error');
+        print('[DEVICE] Error: $error');
       },
     );
   }
@@ -77,7 +79,6 @@ class DeviceControlProvider with ChangeNotifier {
 
     try {
       final deviceName = device.name; // 'fan', 'lid', 'stirrer'
-      print('DeviceControlProvider: Sending command - $deviceName -> $action');
       await _mqttService.publishCommand(deviceName, action);
 
       // Don't wait - status updates come from hardware via MQTT stream
@@ -90,7 +91,7 @@ class DeviceControlProvider with ChangeNotifier {
         notifyListeners();
       });
     } catch (e) {
-      print('DeviceControlProvider: Error sending command: $e');
+      print('[DEVICE] Command error: $device -> $action: $e');
       _commandStates[device] = DeviceCommandState.error;
       notifyListeners();
 
@@ -110,8 +111,6 @@ class DeviceControlProvider with ChangeNotifier {
   Future<void> toggleLid() async {
     final currentAction = _deviceStates[DeviceType.lid] ?? DeviceAction.close;
     final isOpen = currentAction == DeviceAction.open;
-    print(
-        'DeviceControlProvider: toggleLid - current state: $currentAction, isOpen: $isOpen, sending: ${isOpen ? 'CLOSE' : 'OPEN'}');
     await sendCommand(DeviceType.lid, isOpen ? 'CLOSE' : 'OPEN');
   }
 

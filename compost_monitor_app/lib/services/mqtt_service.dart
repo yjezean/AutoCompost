@@ -36,7 +36,7 @@ class MqttService {
 
       _client = MqttServerClient.withPort(host,
           'compost_flutter_${DateTime.now().millisecondsSinceEpoch}', port);
-      _client!.logging(on: true); // Enable logging temporarily for debugging
+      _client!.logging(on: false); // Disable verbose MQTT library logging
       _client!.keepAlivePeriod = 60;
       _client!.autoReconnect = true;
 
@@ -58,25 +58,15 @@ class MqttService {
       await _client!.connect();
 
       // Set up message callback AFTER connection
-      print('MqttService: Setting up updates stream listener after connection');
       _updatesSubscription = _client!.updates
           ?.listen((List<MqttReceivedMessage<MqttMessage?>>? c) {
-        if (c == null || c.isEmpty) {
-          print('MqttService: Received empty or null message list');
-          return;
-        }
-        print('MqttService: Received ${c.length} message(s) in callback');
+        if (c == null || c.isEmpty) return;
         for (final message in c) {
           final recMess = message.payload as MqttPublishMessage?;
-          if (recMess == null) {
-            print('MqttService: Skipping message with null payload');
-            continue;
-          }
+          if (recMess == null) continue;
           final topic = message.topic;
           final payload =
               MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
-          print(
-              'MqttService: Processing message on topic: $topic, payload length: ${payload.length}');
           _handleMessage(topic, payload);
         }
       });
@@ -88,7 +78,6 @@ class MqttService {
   }
 
   void _onConnected() {
-    print('MqttService: Connected to broker');
     _isConnected = true;
     _connectionController.add(true);
     _subscribeToTopics();
@@ -100,7 +89,7 @@ class MqttService {
   }
 
   void _onSubscribed(String topic) {
-    print('MqttService: Successfully subscribed to topic: $topic');
+    // Subscription successful
   }
 
   void _pong() {
@@ -108,16 +97,12 @@ class MqttService {
   }
 
   void _subscribeToTopics() {
-    print('MqttService: Subscribing to topics...');
     // Subscribe to sensor data
     _client!.subscribe('compost/sensor/data', MqttQos.atLeastOnce);
-    print('MqttService: Subscribed to compost/sensor/data');
-
     // Subscribe to device status topics
     _client!.subscribe('compost/status/fan', MqttQos.atLeastOnce);
     _client!.subscribe('compost/status/lid', MqttQos.atLeastOnce);
     _client!.subscribe('compost/status/stirrer', MqttQos.atLeastOnce);
-    print('MqttService: Subscribed to status topics (fan, lid, stirrer)');
   }
 
   void _handleMessage(String topic, String payload) {
@@ -130,28 +115,37 @@ class MqttService {
         final deviceType = topic.split('/').last; // 'fan', 'lid', or 'stirrer'
         final jsonData = json.decode(payload) as Map<String, dynamic>;
 
-        print('MqttService: Received status update on $topic: $payload');
-
         // Create DeviceStatus from the message
-        // Parse timestamp and convert from UTC to local time (GMT+8)
-        final utcTimestamp = DateTime.parse(jsonData['timestamp'] as String);
-        final localTimestamp = utcTimestamp.toLocal();
+        final statusString = jsonData['status'] as String? ?? jsonData['action'] as String?;
+        if (statusString == null) {
+          print('[MQTT] Error: No status/action in payload for $deviceType');
+          return;
+        }
+        
+        final timestampString = jsonData['timestamp'] as String?;
+        DateTime localTimestamp;
+        if (timestampString != null) {
+          try {
+            final utcTimestamp = DateTime.parse(timestampString);
+            localTimestamp = utcTimestamp.toLocal();
+          } catch (e) {
+            localTimestamp = DateTime.now();
+          }
+        } else {
+          localTimestamp = DateTime.now();
+        }
         
         final status = DeviceStatus(
           device: _parseDeviceType(deviceType),
-          action: DeviceStatus.parseDeviceAction(jsonData['status'] as String),
+          action: DeviceStatus.parseDeviceAction(statusString),
           timestamp: localTimestamp,
         );
-        print(
-            'MqttService: Parsed status - device: ${status.device}, action: ${status.action}');
+        
         _deviceStatusController.add(status);
-        print('MqttService: Added status to stream');
+        print('[MQTT] Status: $deviceType -> ${status.action}');
       }
-    } catch (e, stackTrace) {
-      // Log error for debugging
-      print('Error handling MQTT message on topic $topic: $e');
-      print('Payload: $payload');
-      print('Stack trace: $stackTrace');
+    } catch (e) {
+      print('[MQTT] Error handling message on $topic: $e');
     }
   }
 
