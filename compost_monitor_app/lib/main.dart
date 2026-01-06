@@ -6,6 +6,7 @@ import 'providers/chart_data_provider.dart';
 import 'providers/device_control_provider.dart';
 import 'providers/compost_batch_provider.dart';
 import 'providers/cycle_provider.dart';
+import 'providers/optimization_provider.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/chart_screen.dart';
 import 'screens/control_screen.dart';
@@ -32,6 +33,7 @@ class CompostMonitorApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DeviceControlProvider(mqttService)),
         ChangeNotifierProvider(create: (_) => CompostBatchProvider()),
         ChangeNotifierProvider(create: (_) => CycleProvider()),
+        ChangeNotifierProvider(create: (_) => OptimizationProvider()),
       ],
       child: MaterialApp(
         title: 'Compost Monitor',

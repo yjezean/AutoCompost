@@ -217,6 +217,30 @@ class CompostMQTTListener:
         except Exception as e:
             logger.error(f"[DEVICE STATUS] Error handling status: {e}")
     
+    def is_optimization_enabled(self) -> bool:
+        """Check if optimization (automated control) is enabled"""
+        try:
+            cursor = self.db_conn.cursor()
+            cursor.execute(
+                """
+                SELECT setting_value
+                FROM system_settings
+                WHERE setting_key = 'optimization_enabled'
+                """
+            )
+            row = cursor.fetchone()
+            cursor.close()
+            
+            if not row:
+                # Default to enabled if not found
+                return True
+            
+            return row[0].lower() == 'true'
+        except Exception as e:
+            logger.error(f"Error checking optimization status: {e}")
+            # Default to enabled on error
+            return True
+    
     def check_thresholds_and_control(self, data: Dict):
         """
         Check sensor readings against optimal ranges and publish control commands.
@@ -225,6 +249,11 @@ class CompostMQTTListener:
         - Temperature: 55-65°C (131-149°F)
         - Humidity: 50-60% water (by weight)
         """
+        # Check if optimization is enabled
+        if not self.is_optimization_enabled():
+            logger.debug("[CONTROL] Optimization disabled - skipping automated control")
+            return
+        
         temp = data['temperature']
         humidity = data['humidity']
         

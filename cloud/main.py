@@ -887,6 +887,76 @@ async def get_materials():
         logger.error(f"Error retrieving materials: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving materials: {str(e)}")
 
+# Optimization Settings Endpoints
+
+class OptimizationStatus(BaseModel):
+    enabled: bool
+
+@app.get("/api/v1/optimization/status", response_model=OptimizationStatus)
+async def get_optimization_status():
+    """
+    Get current optimization (automated control) status
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cursor.execute(
+            """
+            SELECT setting_value
+            FROM system_settings
+            WHERE setting_key = 'optimization_enabled'
+            """
+        )
+        
+        row = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not row:
+            # Default to enabled if not found
+            return OptimizationStatus(enabled=True)
+        
+        enabled = row['setting_value'].lower() == 'true'
+        return OptimizationStatus(enabled=enabled)
+        
+    except Exception as e:
+        logger.error(f"Error retrieving optimization status: {e}")
+        # Default to enabled on error
+        return OptimizationStatus(enabled=True)
+
+@app.put("/api/v1/optimization/status", response_model=OptimizationStatus)
+async def set_optimization_status(status: OptimizationStatus):
+    """
+    Set optimization (automated control) status
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            """
+            INSERT INTO system_settings (setting_key, setting_value, description, updated_at)
+            VALUES ('optimization_enabled', %s, 'Automated temperature and humidity control optimization', CURRENT_TIMESTAMP)
+            ON CONFLICT (setting_key) 
+            DO UPDATE SET 
+                setting_value = EXCLUDED.setting_value,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (str(status.enabled).lower(),)
+        )
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logger.info(f"Optimization status updated to: {status.enabled}")
+        return status
+        
+    except Exception as e:
+        logger.error(f"Error updating optimization status: {e}")
+        raise HTTPException(status_code=500, detail=f"Error updating optimization status: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

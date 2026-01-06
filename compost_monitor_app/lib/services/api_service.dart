@@ -260,5 +260,49 @@ class ApiService {
       throw Exception('Error fetching materials: $e');
     }
   }
+
+  // Optimization Settings Endpoints
+
+  // Get optimization status
+  static Future<bool> getOptimizationStatus() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final response = await http.get(
+        Uri.parse('$baseUrl/optimization/status'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body) as Map<String, dynamic>;
+        return jsonData['enabled'] as bool;
+      } else {
+        throw Exception('Failed to load optimization status: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error fetching optimization status: $e');
+    }
+  }
+
+  // Set optimization status
+  static Future<bool> setOptimizationStatus(bool enabled) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final response = await http.put(
+        Uri.parse('$baseUrl/optimization/status'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'enabled': enabled}),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final jsonData = json.decode(response.body) as Map<String, dynamic>;
+        return jsonData['enabled'] as bool;
+      } else {
+        final errorBody = json.decode(response.body);
+        throw Exception('Failed to update optimization status: ${errorBody['detail'] ?? response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error updating optimization status: $e');
+    }
+  }
 }
 
