@@ -30,24 +30,36 @@ class ControlButton extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, size: 24, color: AppTheme.primaryGreen),
+                Icon(
+                  icon,
+                  size: 24,
+                  color: isEnabled
+                      ? AppTheme.primaryGreen
+                      : AppTheme.textSecondary.withOpacity(0.5),
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     label,
-                    style: Theme.of(context).textTheme.headlineSmall,
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: isEnabled
+                              ? null
+                              : AppTheme.textSecondary.withOpacity(0.5),
+                        ),
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isActive ? AppTheme.success : AppTheme.textSecondary,
+                    color: isEnabled
+                        ? (isActive ? AppTheme.success : AppTheme.textSecondary)
+                        : AppTheme.divider,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     isActive ? 'ON' : 'OFF',
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: isEnabled ? Colors.white : AppTheme.textSecondary,
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
