@@ -18,6 +18,9 @@ class CompostBatchProvider with ChangeNotifier {
 
   CompostBatchProvider() {
     _startPeriodicRefresh();
+    // Fetch immediately on initialization
+    fetchBatch();
+    fetchCompletionStatus();
   }
 
   void _startPeriodicRefresh() {
@@ -35,8 +38,12 @@ class CompostBatchProvider with ChangeNotifier {
       _error = null;
       notifyListeners();
     } catch (e) {
-      _error = e.toString();
-      _currentBatch = null;
+      // Only set error if we don't have existing batch data
+      // This allows batch info to persist even if device is temporarily offline
+      if (_currentBatch == null) {
+        _error = e.toString();
+      }
+      // Don't clear existing batch on error - keep showing last known batch
       notifyListeners();
     }
   }

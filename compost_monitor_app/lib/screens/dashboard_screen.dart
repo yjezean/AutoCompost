@@ -102,8 +102,31 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ] else ...[
                     const SizedBox(height: 200),
-                    const Center(
-                      child: Text('Waiting for sensor data...'),
+                    Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.sensors_off,
+                            size: 48,
+                            color: AppTheme.textSecondary,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Device Offline',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Waiting for sensor data...',
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: AppTheme.textSecondary,
+                                ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
 
@@ -114,43 +137,60 @@ class DashboardScreen extends StatelessWidget {
                     combinedProgress: combinedProgress,
                   ),
 
-                  // Device Status Overview
-                  if (sensorData != null) ...[
-                    Card(
-                      margin: const EdgeInsets.all(16),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Device Status',
-                              style: Theme.of(context).textTheme.headlineSmall,
-                            ),
-                            const SizedBox(height: 12),
-                            _buildStatusRow(
-                              context,
-                              'Fan',
-                              _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.fan)),
-                              deviceProvider.isDeviceActive(DeviceType.fan),
-                            ),
-                            _buildStatusRow(
-                              context,
-                              'Lid',
-                              _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.lid)),
-                              deviceProvider.isDeviceActive(DeviceType.lid),
-                            ),
-                            _buildStatusRow(
-                              context,
-                              'Stirrer',
-                              _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.stirrer)),
-                              deviceProvider.isDeviceActive(DeviceType.stirrer),
-                            ),
-                          ],
-                        ),
+                  // Device Status Overview - Show regardless of sensor data
+                  Card(
+                    margin: const EdgeInsets.all(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Device Status',
+                                style: Theme.of(context).textTheme.headlineSmall,
+                              ),
+                              if (sensorData == null) ...[
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  size: 20,
+                                  color: AppTheme.warning,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '(Offline)',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: AppTheme.warning,
+                                      ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _buildStatusRow(
+                            context,
+                            'Fan',
+                            _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.fan)),
+                            deviceProvider.isDeviceActive(DeviceType.fan),
+                          ),
+                          _buildStatusRow(
+                            context,
+                            'Lid',
+                            _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.lid)),
+                            deviceProvider.isDeviceActive(DeviceType.lid),
+                          ),
+                          _buildStatusRow(
+                            context,
+                            'Stirrer',
+                            _getDeviceStatusText(deviceProvider.getDeviceState(DeviceType.stirrer)),
+                            deviceProvider.isDeviceActive(DeviceType.stirrer),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
 
                   const SizedBox(height: 16),
                 ],
