@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../providers/chart_data_provider.dart';
+import '../providers/sensor_provider.dart';
 import '../widgets/temperature_chart_widget.dart';
 import '../widgets/humidity_chart_widget.dart';
 import '../theme/app_theme.dart';
@@ -44,9 +45,9 @@ class _ChartScreenState extends State<ChartScreen> {
         title: const Text('Historical Data'),
         actions: [
           Consumer<ChartDataProvider>(
-            builder: (context, provider, child) {
+            builder: (context, chartProvider, child) {
               return IconButton(
-                icon: provider.isLoading
+                icon: chartProvider.isLoading
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -54,16 +55,19 @@ class _ChartScreenState extends State<ChartScreen> {
                       )
                     : const Icon(Icons.refresh),
                 onPressed:
-                    provider.isLoading ? null : () => provider.fetchData(),
+                    chartProvider.isLoading ? null : () => chartProvider.fetchData(),
                 tooltip: 'Refresh data',
               );
             },
           ),
         ],
       ),
-      body: Consumer<ChartDataProvider>(
-        builder: (context, provider, child) {
-          if (provider.error != null) {
+      body: Consumer2<ChartDataProvider, SensorProvider>(
+        builder: (context, chartProvider, sensorProvider, child) {
+          // Check if device is offline
+          final isOffline = sensorProvider.currentData == null || !sensorProvider.isConnected;
+          
+          if (chartProvider.error != null) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -82,14 +86,14 @@ class _ChartScreenState extends State<ChartScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                     child: Text(
-                      provider.error!,
+                      chartProvider.error!,
                       style: Theme.of(context).textTheme.bodyMedium,
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => provider.fetchData(),
+                    onPressed: () => chartProvider.fetchData(),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -99,6 +103,45 @@ class _ChartScreenState extends State<ChartScreen> {
 
           return Column(
             children: [
+              // Offline Indicator Banner
+              if (isOffline)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  color: AppTheme.warning.withOpacity(0.1),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: AppTheme.warning,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Device Offline',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: AppTheme.warning,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Charts show historical data only. Real-time data unavailable.',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Time Range Selector
               Padding(
                 padding: const EdgeInsets.all(16),
@@ -109,28 +152,28 @@ class _ChartScreenState extends State<ChartScreen> {
                       context,
                       '1 Day',
                       1,
-                      provider.selectedDays == 1,
-                      provider,
+                      chartProvider.selectedDays == 1,
+                      chartProvider,
                     ),
                     _buildTimeRangeButton(
                       context,
                       '7 Days',
                       7,
-                      provider.selectedDays == 7,
-                      provider,
+                      chartProvider.selectedDays == 7,
+                      chartProvider,
                     ),
                     _buildTimeRangeButton(
                       context,
                       '30 Days',
                       30,
-                      provider.selectedDays == 30,
-                      provider,
+                      chartProvider.selectedDays == 30,
+                      chartProvider,
                     ),
                   ],
                 ),
               ),
               // Last Fetched Timestamp
-              if (provider.lastFetched != null)
+              if (chartProvider.lastFetched != null)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
@@ -143,7 +186,7 @@ class _ChartScreenState extends State<ChartScreen> {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        'Last updated: ${DateFormat('MM/dd HH:mm:ss').format(provider.lastFetched!)}',
+                        'Last updated: ${DateFormat('MM/dd HH:mm:ss').format(chartProvider.lastFetched!)}',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: AppTheme.textSecondary,
                             ),
@@ -181,8 +224,8 @@ class _ChartScreenState extends State<ChartScreen> {
                         ),
                       ),
                       TemperatureChartWidget(
-                        data: provider.data,
-                        isLoading: provider.isLoading,
+                        data: chartProvider.data,
+                        isLoading: chartProvider.isLoading,
                       ),
                       const SizedBox(height: 16),
                       // Charts - Humidity
@@ -207,8 +250,8 @@ class _ChartScreenState extends State<ChartScreen> {
                         ),
                       ),
                       HumidityChartWidget(
-                        data: provider.data,
-                        isLoading: provider.isLoading,
+                        data: chartProvider.data,
+                        isLoading: chartProvider.isLoading,
                       ),
                       const SizedBox(height: 16),
                     ],
