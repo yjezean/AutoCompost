@@ -56,7 +56,6 @@ The cloud backend serves as the central processing hub for the compost monitorin
 - `GET /api/v1/compost-batch/current` - Current active batch
 - `POST /api/v1/compost-batch` - Create new batch
 - `GET /api/v1/analytics/completion-status` - Compost completion analysis
-- See [API_DOCS.md](API_DOCS.md) for complete API documentation
 
 ### 3. Calculation Module (`compost_calculations.py`)
 
@@ -160,7 +159,6 @@ cloud/
 │   └── compost-mqtt-listener.service
 ├── README.md                  # This file
 ├── SETUP.md                   # Detailed setup guide
-├── API_DOCS.md               # API endpoint documentation
 └── SYSTEMD_SETUP.md          # Systemd service setup guide
 ```
 
@@ -218,7 +216,6 @@ See [requirements.txt](requirements.txt) for complete list. Key dependencies:
 ## Documentation
 
 - **[SETUP.md](SETUP.md)** - Detailed installation and configuration guide
-- **[API_DOCS.md](API_DOCS.md)** - Complete API endpoint documentation
 - **[SYSTEMD_SETUP.md](SYSTEMD_SETUP.md)** - Systemd service deployment guide
 
 ## Logging
@@ -237,3 +234,4 @@ sudo journalctl -u compost-mqtt-listener.service -f
 # FastAPI logs
 sudo journalctl -u compost-api.service -f
 ``
+```

@@ -15,36 +15,42 @@ The mobile app serves as the user interface for the compost monitoring system:
 ## Features
 
 ### Real-Time Monitoring
+
 - Live temperature and humidity gauges
 - Real-time device status indicators (fan, lid, stirrer)
 - MQTT-based low-latency updates
 - Visual feedback for device state changes
 
 ### Historical Data
+
 - Interactive line charts for temperature and humidity
 - Time range selection (1, 7, 30 days)
 - Data point markers for device activations
 - Smooth animations and responsive UI
 
 ### Device Control
+
 - Manual control buttons for fan, lid, and stirrer
 - Real-time status feedback
 - Loading indicators during command execution
 - Confirmation messages for successful operations
 
 ### Batch Management
+
 - Create new compost batches
 - View current active batch information
 - Track batch lifecycle (planning, active, completed)
 - Batch progress indicators
 
 ### Analytics
+
 - Compost completion status calculation
 - C:N ratio calculations for waste optimization
 - Temperature curve analysis
 - Optimization recommendations
 
 ### Settings
+
 - Configurable MQTT broker URL
 - Configurable API base URL
 - Persistent settings storage
@@ -53,6 +59,7 @@ The mobile app serves as the user interface for the compost monitoring system:
 ## Architecture
 
 ### State Management
+
 - **Provider Pattern**: Used for state management across the app
 - **Providers**:
   - `SensorProvider` - Real-time sensor data from MQTT
@@ -63,6 +70,7 @@ The mobile app serves as the user interface for the compost monitoring system:
   - `OptimizationProvider` - Analytics and optimization
 
 ### Communication
+
 - **MQTT**: Real-time sensor data and device control
   - Library: `mqtt_client`
   - Topics: `compost/sensor/data`, `compost/cmd/*`, `compost/status/*`
@@ -71,6 +79,7 @@ The mobile app serves as the user interface for the compost monitoring system:
   - Base URL: Configurable (default: `http://34.87.144.95:8000/api/v1`)
 
 ### UI Components
+
 - **Charts**: `fl_chart` for line charts
 - **Gauges**: `syncfusion_flutter_gauges` for temperature/humidity gauges
 - **Theme**: Custom app theme with Material Design
@@ -126,12 +135,14 @@ compost_monitor_app/
 ### Basic Setup
 
 1. **Install Flutter dependencies**:
+
    ```bash
    cd compost_monitor_app
    flutter pub get
    ```
 
 2. **Configure backend URLs** (optional):
+
    - Default MQTT: `tcp://34.87.144.95:1883`
    - Default API: `http://34.87.144.95:8000/api/v1`
    - Can be changed in Settings screen after app launch
@@ -159,26 +170,31 @@ Key dependencies (see `pubspec.yaml` for complete list):
 ## Screens
 
 ### Dashboard Screen
+
 - Real-time temperature and humidity gauges
 - Current device status
 - Quick access to other screens
 
 ### Chart Screen
+
 - Historical temperature and humidity charts
 - Time range selection
 - Device activation markers
 
 ### Control Screen
+
 - Manual device control buttons
 - Real-time status feedback
 - Device state indicators
 
 ### Cycle Management Screen
+
 - Create new compost batches
 - View current batch information
 - Batch lifecycle management
 
 ### Settings Screen
+
 - MQTT broker configuration
 - API endpoint configuration
 - Connection status
@@ -186,14 +202,17 @@ Key dependencies (see `pubspec.yaml` for complete list):
 ## MQTT Topics
 
 ### Subscribed Topics
+
 - `compost/sensor/data` - Real-time sensor data from ESP32
 
 ### Published Topics
+
 - `compost/cmd/fan` - Fan control commands (ON/OFF)
 - `compost/cmd/lid` - Lid control commands (OPEN/CLOSED)
 - `compost/cmd/stirrer` - Stirrer control commands (ON/OFF)
 
 ### Status Topics
+
 - `compost/status/fan` - Fan status feedback
 - `compost/status/lid` - Lid status feedback
 - `compost/status/stirrer` - Stirrer status feedback
@@ -204,15 +223,16 @@ Key dependencies (see `pubspec.yaml` for complete list):
 - `GET /api/v1/compost-batch/current` - Current active batch
 - `POST /api/v1/compost-batch` - Create new batch
 - `GET /api/v1/analytics/completion-status` - Completion status
-- See [cloud/API_DOCS.md](../cloud/API_DOCS.md) for complete API documentation
 
 ## Configuration
 
 ### Default Settings
+
 - MQTT Broker: `tcp://34.87.144.95:1883`
 - API Base URL: `http://34.87.144.95:8000/api/v1`
 
 ### Changing Settings
+
 1. Open the app
 2. Navigate to Settings screen
 3. Update MQTT broker URL or API base URL
@@ -221,12 +241,14 @@ Key dependencies (see `pubspec.yaml` for complete list):
 ## Building for Production
 
 ### Android
+
 ```bash
 flutter build apk --release
 # Output: build/app/outputs/flutter-apk/app-release.apk
 ```
 
 ### iOS
+
 ```bash
 flutter build ios --release
 ```
