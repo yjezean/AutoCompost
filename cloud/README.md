@@ -1,106 +1,172 @@
-# Cloud Backend
+# Cloud Backend Module
 
-This directory contains the backend services for the IoT Compost Monitoring System.
+This module contains the backend services for the IoT Compost Monitoring System, deployed on Google Cloud Platform (GCP) Compute Engine.
 
-## Structure
+## Purpose
 
-```
-cloud/
-├── mqtt_listener.py      # MQTT listener service (subscribes to sensor data, saves to DB)
-├── main.py               # FastAPI application (HTTP API for Flutter app)
-├── config.py             # Configuration settings
-├── .env                  # Environment variables (create manually)
-├── requirements.txt      # Python dependencies
-├── README.md            # This file
-└── DEPLOY.md            # Deployment instructions
-```
+The cloud backend serves as the central processing hub for the compost monitoring system:
 
-## Setup
+- **Data Persistence**: Stores all sensor readings in PostgreSQL for historical analysis
+- **Automated Control**: Monitors sensor data and automatically controls devices (fan, lid, stirrer) based on optimal composting conditions
+- **REST API**: Provides HTTP endpoints for the Flutter mobile app to access historical data and manage compost batches
+- **Analytics**: Calculates compost completion status and provides insights through temperature curve analysis
 
-1. **Copy files to server:**
+## Components
 
-   - Upload all files from this `cloud/` directory to `/opt/compost-backend/` on your GCP server
-   - Or use git to clone/pull, or use `scp` to transfer files
+### 1. MQTT Listener Service (`mqtt_listener.py`)
 
-2. **Install dependencies:**
+**Purpose**: Real-time sensor data processing and automated control
 
-```bash
-cd /opt/compost-backend
-source venv/bin/activate
-pip install -r requirements.txt
-```
+**Functions**:
 
-3. **Create `.env` file:**
+- Subscribes to MQTT topic `compost/sensor/data` from ESP32 hardware
+- Saves sensor readings to PostgreSQL database
+- Implements automated control logic based on temperature and humidity thresholds
+- Publishes control commands to MQTT topics (`compost/cmd/fan`, `compost/cmd/lid`, `compost/cmd/stirrer`)
+- Manages periodic stirrer operation (5 minutes ON, 30 minutes OFF)
 
-```bash
-cd /opt/compost-backend
-nano .env
-```
+**Control Logic**:
 
-Add the following content:
+- **Temperature Control**: Maintains 55-65°C optimal range
+  - < 55°C: Fan OFF, Lid CLOSED (retain heat)
+  - 55-65°C: Optimal range (maintain current state)
+  - > 65°C: Fan ON, Lid OPEN (cooling)
+  - > 70°C: Emergency cooling (Fan ON, Lid OPEN)
+- **Humidity Control**: Maintains 50-60% optimal range
+  - < 50%: Fan OFF (retain moisture)
+  - 50-60%: Optimal range
+  - > 60%: Fan ON, Lid OPEN (dehumidification)
+- **Priority**: Temperature control takes priority over humidity control
 
-```env
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=compost_db
-DB_USER=compost_user
-DB_PASSWORD=db1234
+### 2. FastAPI Application (`main.py`)
 
-# MQTT Configuration
-MQTT_BROKER_HOST=localhost
-MQTT_BROKER_PORT=1883
-MQTT_USERNAME=
-MQTT_PASSWORD=
+**Purpose**: HTTP REST API for mobile app
 
-# MQTT Topic
-MQTT_SENSOR_TOPIC=compost/sensor/data
+**Key Features**:
 
-# Control Thresholds
-FAN_TEMP_THRESHOLD=60.0
-FAN_HUMIDITY_THRESHOLD=80.0
-LID_TEMP_THRESHOLD=65.0
+- Sensor data retrieval (historical data with time range filtering)
+- Compost batch management (create, read, update batches)
+- Cycle management (multi-cycle support with waste tracking)
+- Analytics endpoints (completion status, C:N ratio calculations)
+- CORS enabled for Flutter app access
 
-# API Configuration
-API_HOST=0.0.0.0
-API_PORT=8000
-```
+**Endpoints**:
 
-4. **Test MQTT listener:**
+- `GET /api/v1/sensor-data?days=7` - Historical sensor data
+- `GET /api/v1/compost-batch/current` - Current active batch
+- `POST /api/v1/compost-batch` - Create new batch
+- `GET /api/v1/analytics/completion-status` - Compost completion analysis
+- See [API_DOCS.md](API_DOCS.md) for complete API documentation
 
-```bash
-cd /opt/compost-backend
-source venv/bin/activate
-python mqtt_listener.py
-```
+### 3. Calculation Module (`compost_calculations.py`)
 
-5. **Run FastAPI server:**
+**Purpose**: Centralized calculation and control logic
 
-```bash
-cd /opt/compost-backend
-source venv/bin/activate
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
+**Functions**:
 
-Or run directly:
+- `calculate_cn_ratio()` - C:N ratio calculation for waste optimization
+- `check_temperature_control()` - Temperature control recommendations
+- `check_humidity_control()` - Humidity control recommendations
+- `get_combined_control_recommendation()` - Combined control logic with priority handling
 
-```bash
-python main.py
-```
+### 4. Configuration (`config.py`)
 
-6. **Access API Documentation:**
+**Purpose**: Centralized configuration management
 
+**Features**:
+
+- Loads environment variables from `.env` file
+- Database connection settings
+- MQTT broker configuration
+- Control thresholds (temperature, humidity optimal ranges)
+- API host and port settings
+
+## Features
+
+- **Real-time Data Processing**: MQTT listener processes sensor data as it arrives
+- **Automated Control**: Intelligent control logic maintains optimal composting conditions
+- **Historical Data Storage**: All sensor readings stored with timestamps for analytics
+- **Batch Management**: Track multiple compost batches with lifecycle management
+- **Analytics**: Temperature curve analysis to determine compost completion status
+- **C:N Ratio Calculations**: Optimize waste input ratios for better composting
+- **RESTful API**: Standard HTTP API with automatic documentation (Swagger/ReDoc)
+- **Service Management**: Systemd integration for automatic startup and monitoring
+
+## Quick Start
+
+### Prerequisites
+
+- GCP Compute Engine instance (Ubuntu/Debian)
+- Python 3.8+
+- PostgreSQL 12+
+- Mosquitto MQTT broker
+- Virtual environment (recommended)
+
+### Basic Setup
+
+1. **Install dependencies**:
+
+   ```bash
+   cd /opt/compost-backend
+   source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. **Configure environment**:
+
+   - Create `.env` file (see [SETUP.md](SETUP.md) for details)
+   - Set database credentials
+   - Set MQTT broker address
+   - Configure control thresholds
+
+3. **Run services**:
+
+   ```bash
+   # MQTT Listener (in one terminal)
+   python mqtt_listener.py
+
+   # FastAPI Server (in another terminal)
+   uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+
+4. **Access API documentation**:
    - Swagger UI: `http://YOUR_SERVER_IP:8000/docs`
    - ReDoc: `http://YOUR_SERVER_IP:8000/redoc`
 
-7. **Set up systemd services (optional but recommended):**
-   - See `SYSTEMD_SETUP.md` for instructions to run services automatically
+### Production Deployment
 
-See `API_DOCS.md` for detailed endpoint documentation.
+For production deployment with automatic startup and service management:
+
+- See [SETUP.md](SETUP.md) for detailed installation instructions
+- See [SYSTEMD_SETUP.md](SYSTEMD_SETUP.md) for systemd service configuration
+
+## File Structure
+
+```
+cloud/
+├── main.py                    # FastAPI application
+├── mqtt_listener.py           # MQTT listener service
+├── compost_calculations.py    # Control logic calculations
+├── config.py                  # Configuration settings
+├── test_control_logic.py      # Control logic tests
+├── requirements.txt           # Python dependencies
+├── .env                       # Environment variables (create manually)
+├── migrations/                # Database migration scripts
+│   ├── 002_phase2_schema_updates.sql
+│   ├── 003_optimization_settings.sql
+│   └── 004_insert_mock_completed_cycles.sql
+├── systemd/                   # Systemd service files
+│   ├── compost-api.service
+│   └── compost-mqtt-listener.service
+├── README.md                  # This file
+├── SETUP.md                   # Detailed setup guide
+├── API_DOCS.md               # API endpoint documentation
+└── SYSTEMD_SETUP.md          # Systemd service setup guide
+```
 
 ## ESP32 Data Format
 
-The ESP32 publishes JSON messages to topic `compost/sensor/data` with the following format:
+The ESP32 publishes JSON messages to topic `compost/sensor/data`:
 
 ```json
 {
@@ -113,11 +179,61 @@ The ESP32 publishes JSON messages to topic `compost/sensor/data` with the follow
 }
 ```
 
-The listener expects:
+**Required Fields**:
 
 - `temperature` (float) - Temperature in Celsius
 - `humidity` (float) - Humidity percentage
-- `timestamp` (ISO 8601 string, optional) - UTC timestamp. If missing, current time is used
-- `lid` (string, optional) - "OPEN" or "CLOSED"
-- `relay` (string, optional) - "ON" or "OFF" (controls fan)
-- `stirrer` (string, optional) - "ON" or "OFF"
+
+**Optional Fields**:
+
+- `timestamp` (ISO 8601 string) - UTC timestamp (defaults to current time if missing)
+- `lid` (string) - "OPEN" or "CLOSED"
+- `relay` (string) - "ON" or "OFF" (controls fan)
+- `stirrer` (string) - "ON" or "OFF"
+
+## MQTT Topics
+
+### Subscribed Topics
+
+- `compost/sensor/data` - Sensor data from ESP32
+
+### Published Topics
+
+- `compost/cmd/fan` - Fan control commands (ON/OFF)
+- `compost/cmd/lid` - Lid control commands (OPEN/CLOSED)
+- `compost/cmd/stirrer` - Stirrer control commands (ON/OFF)
+
+## Dependencies
+
+See [requirements.txt](requirements.txt) for complete list. Key dependencies:
+
+- `fastapi==0.104.1` - Web framework
+- `uvicorn==0.24.0` - ASGI server
+- `paho-mqtt==1.6.1` - MQTT client
+- `psycopg2-binary==2.9.9` - PostgreSQL adapter
+- `pandas==2.1.3` - Data analysis
+- `numpy==1.26.2` - Numerical computations
+- `python-dotenv==1.0.0` - Environment variable management
+
+## Documentation
+
+- **[SETUP.md](SETUP.md)** - Detailed installation and configuration guide
+- **[API_DOCS.md](API_DOCS.md)** - Complete API endpoint documentation
+- **[SYSTEMD_SETUP.md](SYSTEMD_SETUP.md)** - Systemd service deployment guide
+
+## Logging
+
+Logs are written to:
+
+- MQTT Listener: `/var/log/compost/mqtt-listener.log`
+- FastAPI: `/var/log/compost/api.log`
+
+View logs:
+
+```bash
+# MQTT Listener logs
+sudo journalctl -u compost-mqtt-listener.service -f
+
+# FastAPI logs
+sudo journalctl -u compost-api.service -f
+``

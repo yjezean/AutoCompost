@@ -1,53 +1,232 @@
 # Compost Monitor Mobile App
 
-Flutter mobile application for IoT Compost Monitoring System.
+Flutter mobile application for the IoT Compost Monitoring System, providing real-time monitoring, historical data visualization, and remote device control.
+
+## Purpose
+
+The mobile app serves as the user interface for the compost monitoring system:
+
+- **Real-Time Monitoring**: Live temperature and humidity data via MQTT connection
+- **Historical Visualization**: View sensor data trends over time (1, 7, 30 days)
+- **Device Control**: Remote control of fan, lid, and stirrer devices
+- **Batch Management**: Create and manage compost batches with lifecycle tracking
+- **Analytics**: View compost completion status and optimization recommendations
 
 ## Features
 
-- **Real-time Monitoring**: Live temperature and humidity data via MQTT
-- **Historical Charts**: View sensor data over time (1, 7, or 30 days)
-- **Device Control**: Control fan, lid, and stirrer remotely
-- **Batch Tracking**: Monitor compost batch progress and completion status
-- **Settings**: Configure MQTT broker and API endpoints
+### Real-Time Monitoring
+- Live temperature and humidity gauges
+- Real-time device status indicators (fan, lid, stirrer)
+- MQTT-based low-latency updates
+- Visual feedback for device state changes
 
-## Setup
+### Historical Data
+- Interactive line charts for temperature and humidity
+- Time range selection (1, 7, 30 days)
+- Data point markers for device activations
+- Smooth animations and responsive UI
 
-1. **Install Flutter dependencies:**
+### Device Control
+- Manual control buttons for fan, lid, and stirrer
+- Real-time status feedback
+- Loading indicators during command execution
+- Confirmation messages for successful operations
+
+### Batch Management
+- Create new compost batches
+- View current active batch information
+- Track batch lifecycle (planning, active, completed)
+- Batch progress indicators
+
+### Analytics
+- Compost completion status calculation
+- C:N ratio calculations for waste optimization
+- Temperature curve analysis
+- Optimization recommendations
+
+### Settings
+- Configurable MQTT broker URL
+- Configurable API base URL
+- Persistent settings storage
+- Connection status indicators
+
+## Architecture
+
+### State Management
+- **Provider Pattern**: Used for state management across the app
+- **Providers**:
+  - `SensorProvider` - Real-time sensor data from MQTT
+  - `ChartDataProvider` - Historical chart data
+  - `DeviceControlProvider` - Device control operations
+  - `CompostBatchProvider` - Batch management
+  - `CycleProvider` - Cycle management
+  - `OptimizationProvider` - Analytics and optimization
+
+### Communication
+- **MQTT**: Real-time sensor data and device control
+  - Library: `mqtt_client`
+  - Topics: `compost/sensor/data`, `compost/cmd/*`, `compost/status/*`
+- **HTTP REST**: Historical data and batch management
+  - Library: `http`
+  - Base URL: Configurable (default: `http://34.87.144.95:8000/api/v1`)
+
+### UI Components
+- **Charts**: `fl_chart` for line charts
+- **Gauges**: `syncfusion_flutter_gauges` for temperature/humidity gauges
+- **Theme**: Custom app theme with Material Design
+
+## Project Structure
+
+```
+compost_monitor_app/
+├── lib/
+│   ├── main.dart                    # App entry point
+│   ├── models/                      # Data models
+│   │   ├── sensor_data.dart
+│   │   ├── compost_batch.dart
+│   │   ├── device_status.dart
+│   │   └── ...
+│   ├── services/                    # Service layer
+│   │   ├── api_service.dart         # HTTP API client
+│   │   ├── mqtt_service.dart        # MQTT client
+│   │   └── config_service.dart      # Settings management
+│   ├── providers/                   # State management
+│   │   ├── sensor_provider.dart
+│   │   ├── chart_data_provider.dart
+│   │   ├── device_control_provider.dart
+│   │   └── ...
+│   ├── screens/                     # App screens
+│   │   ├── dashboard_screen.dart    # Main dashboard
+│   │   ├── chart_screen.dart        # Historical charts
+│   │   ├── control_screen.dart      # Device control
+│   │   ├── cycle_management_screen.dart
+│   │   └── settings_screen.dart
+│   ├── widgets/                     # Reusable widgets
+│   │   ├── temperature_gauge.dart
+│   │   ├── humidity_gauge.dart
+│   │   ├── chart_widget.dart
+│   │   └── ...
+│   └── theme/
+│       └── app_theme.dart            # App theme
+├── android/                          # Android-specific files
+├── pubspec.yaml                      # Dependencies
+├── README.md                         # This file
+└── SETUP.md                          # Setup guide
+```
+
+## Quick Start
+
+### Prerequisites
+
+- Flutter SDK 3.0.0 or higher
+- Android Studio / Xcode (for mobile development)
+- Backend API running and accessible
+- MQTT broker accessible
+
+### Basic Setup
+
+1. **Install Flutter dependencies**:
    ```bash
+   cd compost_monitor_app
    flutter pub get
    ```
 
-2. **Configure backend URLs:**
+2. **Configure backend URLs** (optional):
    - Default MQTT: `tcp://34.87.144.95:1883`
    - Default API: `http://34.87.144.95:8000/api/v1`
-   - Can be changed in Settings screen
+   - Can be changed in Settings screen after app launch
 
-3. **Run the app:**
+3. **Run the app**:
    ```bash
    flutter run
    ```
 
-## Project Structure
+For detailed setup instructions, see [SETUP.md](SETUP.md).
 
-- `lib/models/` - Data models
-- `lib/services/` - MQTT and API services
-- `lib/providers/` - State management
-- `lib/screens/` - App screens
-- `lib/widgets/` - Reusable widgets
-- `lib/theme/` - App theme configuration
+## Dependencies
 
-## Requirements
+Key dependencies (see `pubspec.yaml` for complete list):
 
-- Flutter SDK 3.0.0 or higher
-- Backend API running (FastAPI)
-- MQTT broker accessible
-- Active compost batch in database
+- `flutter` - Flutter SDK
+- `provider: ^6.1.1` - State management
+- `mqtt_client: ^10.0.0` - MQTT client
+- `http: ^1.1.0` - HTTP client
+- `fl_chart: ^0.65.0` - Charts
+- `syncfusion_flutter_gauges: ^24.1.41` - Gauges
+- `intl: ^0.18.1` - Internationalization
+- `shared_preferences: ^2.2.2` - Settings storage
 
-## Backend Connection
+## Screens
 
-The app connects to:
-- **MQTT Broker**: For real-time sensor data and device control
-- **FastAPI Backend**: For historical data and batch information
+### Dashboard Screen
+- Real-time temperature and humidity gauges
+- Current device status
+- Quick access to other screens
 
-See `cloud/API_DOCS.md` for API endpoint documentation.
+### Chart Screen
+- Historical temperature and humidity charts
+- Time range selection
+- Device activation markers
 
+### Control Screen
+- Manual device control buttons
+- Real-time status feedback
+- Device state indicators
+
+### Cycle Management Screen
+- Create new compost batches
+- View current batch information
+- Batch lifecycle management
+
+### Settings Screen
+- MQTT broker configuration
+- API endpoint configuration
+- Connection status
+
+## MQTT Topics
+
+### Subscribed Topics
+- `compost/sensor/data` - Real-time sensor data from ESP32
+
+### Published Topics
+- `compost/cmd/fan` - Fan control commands (ON/OFF)
+- `compost/cmd/lid` - Lid control commands (OPEN/CLOSED)
+- `compost/cmd/stirrer` - Stirrer control commands (ON/OFF)
+
+### Status Topics
+- `compost/status/fan` - Fan status feedback
+- `compost/status/lid` - Lid status feedback
+- `compost/status/stirrer` - Stirrer status feedback
+
+## API Endpoints Used
+
+- `GET /api/v1/sensor-data?days=7` - Historical sensor data
+- `GET /api/v1/compost-batch/current` - Current active batch
+- `POST /api/v1/compost-batch` - Create new batch
+- `GET /api/v1/analytics/completion-status` - Completion status
+- See [cloud/API_DOCS.md](../cloud/API_DOCS.md) for complete API documentation
+
+## Configuration
+
+### Default Settings
+- MQTT Broker: `tcp://34.87.144.95:1883`
+- API Base URL: `http://34.87.144.95:8000/api/v1`
+
+### Changing Settings
+1. Open the app
+2. Navigate to Settings screen
+3. Update MQTT broker URL or API base URL
+4. Settings are saved automatically using `shared_preferences`
+
+## Building for Production
+
+### Android
+```bash
+flutter build apk --release
+# Output: build/app/outputs/flutter-apk/app-release.apk
+```
+
+### iOS
+```bash
+flutter build ios --release
+```
