@@ -100,6 +100,59 @@ class DashboardScreen extends StatelessWidget {
                         ),
                       ],
                     ),
+                    
+                    // Low Humidity Alert
+                    if (sensorData.humidity < 40) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 16),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppTheme.warning.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppTheme.warning,
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              color: AppTheme.warning,
+                              size: 32,
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Low Humidity Alert',
+                                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: AppTheme.warning,
+                                        ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Humidity is below 40%. Please add water to maintain optimal composting conditions.',
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                          color: AppTheme.textPrimary,
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(
+                              Icons.water_drop,
+                              color: AppTheme.warning,
+                              size: 24,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ] else ...[
                     const SizedBox(height: 200),
                     Center(
