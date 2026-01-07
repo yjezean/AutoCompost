@@ -38,15 +38,6 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cycle Management'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'All', icon: Icon(Icons.list)),
-            Tab(text: 'Planning', icon: Icon(Icons.schedule)),
-            Tab(text: 'Active', icon: Icon(Icons.play_circle)),
-            Tab(text: 'Completed', icon: Icon(Icons.check_circle)),
-          ],
-        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -56,51 +47,103 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
           ),
         ],
       ),
-      body: Consumer<CycleProvider>(
-        builder: (context, cycleProvider, child) {
-          if (cycleProvider.isLoading && cycleProvider.cycles.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (cycleProvider.error != null && cycleProvider.cycles.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.error_outline, size: 64, color: AppTheme.error),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Error loading cycles',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    cycleProvider.error!,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppTheme.textSecondary,
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () => cycleProvider.refresh(),
-                    child: const Text('Retry'),
+      body: Column(
+        children: [
+          // Enhanced Category Selector
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: AppTheme.surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppTheme.divider,
+                width: 1,
+              ),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: AppTheme.primaryGreen,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppTheme.primaryGreen.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-            );
-          }
+              indicatorSize: TabBarIndicatorSize.tab,
+              dividerColor: Colors.transparent,
+              labelColor: Colors.white,
+              unselectedLabelColor: AppTheme.textSecondary,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w500,
+                fontSize: 13,
+              ),
+              tabs: [
+                _buildTab('All', Icons.list, 0),
+                _buildTab('Planning', Icons.schedule, 1),
+                _buildTab('Active', Icons.play_circle, 2),
+                _buildTab('Completed', Icons.check_circle, 3),
+              ],
+            ),
+          ),
+          // Content Area
+          Expanded(
+            child: Consumer<CycleProvider>(
+              builder: (context, cycleProvider, child) {
+                if (cycleProvider.isLoading && cycleProvider.cycles.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildCycleList(cycleProvider.cycles, cycleProvider),
-              _buildCycleList(cycleProvider.planningCycles, cycleProvider),
-              _buildCycleList(cycleProvider.activeCycles, cycleProvider),
-              _buildCycleList(cycleProvider.completedCycles, cycleProvider),
-            ],
-          );
-        },
+                if (cycleProvider.error != null && cycleProvider.cycles.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline, size: 64, color: AppTheme.error),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading cycles',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          cycleProvider.error!,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: AppTheme.textSecondary,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => cycleProvider.refresh(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                return TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildCycleList(cycleProvider.cycles, cycleProvider),
+                    _buildCycleList(cycleProvider.planningCycles, cycleProvider),
+                    _buildCycleList(cycleProvider.activeCycles, cycleProvider),
+                    _buildCycleList(cycleProvider.completedCycles, cycleProvider),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -115,6 +158,19 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
         },
         icon: const Icon(Icons.add),
         label: const Text('New Cycle'),
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, IconData icon, int index) {
+    return Tab(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
       ),
     );
   }
