@@ -71,7 +71,7 @@ class CycleProvider with ChangeNotifier {
     try {
       final cycleData = {
         'start_date': cycle.startDate.toIso8601String(),
-        'projected_end_date': cycle.projectedEndDate.toIso8601String(),
+        if (cycle.projectedEndDate != null) 'projected_end_date': cycle.projectedEndDate.toIso8601String(),
         'status': cycle.status,
         if (cycle.greenWasteKg != null) 'green_waste_kg': cycle.greenWasteKg,
         if (cycle.brownWasteKg != null) 'brown_waste_kg': cycle.brownWasteKg,

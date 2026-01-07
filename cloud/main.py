@@ -79,7 +79,7 @@ class CompostBatch(BaseModel):
 
 class CompostBatchCreate(BaseModel):
     start_date: datetime
-    projected_end_date: datetime
+    projected_end_date: Optional[datetime] = None  # Optional - will be calculated from volume
     status: str = "planning"
     green_waste_kg: Optional[float] = None
     brown_waste_kg: Optional[float] = None
@@ -589,10 +589,28 @@ async def get_cycle(cycle_id: int):
 async def create_cycle(batch: CompostBatchCreate):
     """
     Create a new compost cycle
+    Calculates projected_end_date based on total volume if not provided
     """
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Calculate projected_end_date based on volume if not explicitly set
+        # Formula: ~21 days base + 1 day per 5 liters of volume
+        if batch.projected_end_date:
+            projected_end = batch.projected_end_date
+        elif batch.initial_volume_liters and batch.initial_volume_liters > 0:
+            # Base composting time: 21 days
+            # Additional time: 1 day per 5 liters
+            base_days = 21
+            additional_days = int(batch.initial_volume_liters / 5.0)
+            total_days = base_days + additional_days
+            # Cap at 90 days maximum
+            total_days = min(total_days, 90)
+            projected_end = batch.start_date + timedelta(days=total_days)
+        else:
+            # Default to 21 days if no volume and no end date specified
+            projected_end = batch.start_date + timedelta(days=21)
         
         # Insert new cycle
         cursor.execute(
@@ -604,7 +622,7 @@ async def create_cycle(batch: CompostBatchCreate):
                       green_waste_kg, brown_waste_kg, total_volume_liters, 
                       cn_ratio, initial_volume_liters
             """,
-            (batch.start_date, batch.projected_end_date, batch.status,
+            (batch.start_date, projected_end, batch.status,
              batch.green_waste_kg, batch.brown_waste_kg, batch.initial_volume_liters)
         )
         

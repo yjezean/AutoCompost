@@ -42,14 +42,18 @@ def calculate_cn_ratio(green_kg: float, brown_kg: float) -> Dict:
     current_ratio = (green_weight * green_cn) + (brown_weight * brown_cn)
     
     # Calculate suggested brown amount for optimal ratio (target: 27.5)
+    # Formula: B = G * (R - green_cn) / (brown_cn - R)
+    # Where R is target ratio, G is green waste, B is brown waste
     target_ratio = 27.5
     if current_ratio < target_ratio:
         # Need more browns
-        suggested_brown = green_kg * (green_cn / target_ratio - 1)
+        # B = G * (R - green_cn) / (brown_cn - R)
+        # B = G * (27.5 - 20) / (60 - 27.5) = G * 7.5 / 32.5 ≈ G * 0.231
+        suggested_brown = green_kg * (target_ratio - green_cn) / (brown_cn - target_ratio)
         status = "too_much_green"
     elif current_ratio > target_ratio * 1.2:
-        # Too much browns
-        suggested_brown = None
+        # Too much browns - suggest reducing or adding more greens
+        suggested_brown = green_kg * (target_ratio - green_cn) / (brown_cn - target_ratio)
         status = "too_much_brown"
     else:
         suggested_brown = None
