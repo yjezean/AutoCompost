@@ -6,6 +6,7 @@ import '../theme/app_theme.dart';
 import '../widgets/cycle_card.dart';
 import 'cycle_create_screen.dart';
 import 'cycle_detail_screen.dart';
+import 'completed_cycles_analytics_screen.dart';
 
 class CycleManagementScreen extends StatefulWidget {
   const CycleManagementScreen({super.key});
@@ -134,10 +135,10 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
                 return TabBarView(
                   controller: _tabController,
                   children: [
-                    _buildCycleList(cycleProvider.cycles, cycleProvider),
-                    _buildCycleList(cycleProvider.planningCycles, cycleProvider),
-                    _buildCycleList(cycleProvider.activeCycles, cycleProvider),
-                    _buildCycleList(cycleProvider.completedCycles, cycleProvider),
+                    _buildCycleList(cycleProvider.cycles, cycleProvider, false),
+                    _buildCycleList(cycleProvider.planningCycles, cycleProvider, false),
+                    _buildCycleList(cycleProvider.activeCycles, cycleProvider, false),
+                    _buildCycleList(cycleProvider.completedCycles, cycleProvider, true),
                   ],
                 );
               },
@@ -175,7 +176,7 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
     );
   }
 
-  Widget _buildCycleList(List<CompostBatch> cycles, CycleProvider provider) {
+  Widget _buildCycleList(List<CompostBatch> cycles, CycleProvider provider, bool isCompletedTab) {
     if (cycles.isEmpty) {
       return Center(
         child: Column(
@@ -207,28 +208,56 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
 
     return RefreshIndicator(
       onRefresh: () => provider.refresh(),
-      child: ListView.builder(
-        itemCount: cycles.length,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemBuilder: (context, index) {
-          final cycle = cycles[index];
-          return CycleCard(
-            cycle: cycle,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CycleDetailScreen(cycleId: cycle.id),
+      child: Column(
+        children: [
+          // Analytics button for completed cycles
+          if (isCompletedTab) ...[
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const CompletedCyclesAnalyticsScreen(),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.analytics),
+                label: const Text('View Analytics'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
                 ),
-              ).then((_) {
-                provider.refresh();
-              });
-            },
-            onActivate: cycle.status != 'active'
-                ? () => _activateCycle(context, cycle.id, provider)
-                : null,
-          );
-        },
+              ),
+            ),
+          ],
+          // Cycles list
+          Expanded(
+            child: ListView.builder(
+              itemCount: cycles.length,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemBuilder: (context, index) {
+                final cycle = cycles[index];
+                return CycleCard(
+                  cycle: cycle,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CycleDetailScreen(cycleId: cycle.id),
+                      ),
+                    ).then((_) {
+                      provider.refresh();
+                    });
+                  },
+                  onActivate: cycle.status != 'active'
+                      ? () => _activateCycle(context, cycle.id, provider)
+                      : null,
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

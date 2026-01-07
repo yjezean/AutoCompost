@@ -1065,6 +1065,228 @@ async def set_optimization_status(status: OptimizationStatus):
         logger.error(f"Error updating optimization status: {e}")
         raise HTTPException(status_code=500, detail=f"Error updating optimization status: {str(e)}")
 
+# Analytics Endpoints for Completed Cycles
+
+class CycleAnalytics(BaseModel):
+    total_completed_cycles: int
+    average_composting_days: float
+    total_composted_waste_kg: float
+    average_temperature: float
+    average_humidity: float
+    optimization_enabled_percentage: float
+    cycles_by_month: List[dict]
+    temperature_trend: List[dict]
+    waste_processed_trend: List[dict]
+
+@app.get("/api/v1/analytics/completed-cycles", response_model=CycleAnalytics)
+async def get_completed_cycles_analytics():
+    """
+    Get analytics for all completed cycles
+    Returns average composting time, total waste processed, average temperature, etc.
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Get all completed cycles
+        cursor.execute(
+            """
+            SELECT id, start_date, projected_end_date, 
+                   green_waste_kg, brown_waste_kg, initial_volume_liters
+            FROM compost_batch
+            WHERE status = 'completed'
+            ORDER BY start_date DESC
+            """
+        )
+        cycles = cursor.fetchall()
+        
+        if not cycles or len(cycles) == 0:
+            # Return empty analytics if no completed cycles
+            return CycleAnalytics(
+                total_completed_cycles=0,
+                average_composting_days=0.0,
+                total_composted_waste_kg=0.0,
+                average_temperature=0.0,
+                average_humidity=0.0,
+                optimization_enabled_percentage=0.0,
+                cycles_by_month=[],
+                temperature_trend=[],
+                waste_processed_trend=[]
+            )
+        
+        # Calculate average composting days
+        total_days = 0
+        valid_cycles = 0
+        total_waste_kg = 0.0
+        
+        for cycle in cycles:
+            start_date = cycle['start_date']
+            end_date = cycle['projected_end_date']
+            if start_date and end_date:
+                days = (end_date - start_date).days
+                if days > 0:
+                    total_days += days
+                    valid_cycles += 1
+            
+            # Sum total waste
+            if cycle['green_waste_kg']:
+                total_waste_kg += float(cycle['green_waste_kg'])
+            if cycle['brown_waste_kg']:
+                total_waste_kg += float(cycle['brown_waste_kg'])
+        
+        average_days = total_days / valid_cycles if valid_cycles > 0 else 0.0
+        
+        # Get average temperature and humidity from sensor data for completed cycles
+        # Use date range from oldest to newest completed cycle
+        if cycles:
+            oldest_start = min(c['start_date'] for c in cycles if c['start_date'])
+            newest_end = max(c['projected_end_date'] for c in cycles if c['projected_end_date'])
+            
+            if oldest_start and newest_end:
+                # Convert to UTC for query (database stores UTC but contains GMT+8 values)
+                oldest_utc = oldest_start.astimezone(timezone.utc) - timedelta(hours=8)
+                newest_utc = newest_end.astimezone(timezone.utc) - timedelta(hours=8)
+                
+                cursor.execute(
+                    """
+                    SELECT AVG(temperature) as avg_temp, AVG(humidity) as avg_hum
+                    FROM sensor_data
+                    WHERE timestamp >= %s AND timestamp <= %s
+                      AND timestamp <= NOW() + INTERVAL '1 day'
+                    """,
+                    (oldest_utc, newest_utc)
+                )
+                temp_hum_row = cursor.fetchone()
+                avg_temp = float(temp_hum_row['avg_temp']) if temp_hum_row['avg_temp'] else 0.0
+                avg_hum = float(temp_hum_row['avg_hum']) if temp_hum_row['avg_hum'] else 0.0
+            else:
+                avg_temp = 0.0
+                avg_hum = 0.0
+        else:
+            avg_temp = 0.0
+            avg_hum = 0.0
+        
+        # Get optimization enabled percentage (check system_settings)
+        cursor.execute(
+            """
+            SELECT setting_value
+            FROM system_settings
+            WHERE setting_key = 'optimization_enabled'
+            """
+        )
+        opt_row = cursor.fetchone()
+        optimization_percentage = 100.0 if (opt_row and opt_row['setting_value'].lower() == 'true') else 0.0
+        
+        # Cycles by month (last 12 months)
+        cycles_by_month = []
+        for i in range(12):
+            month_date = datetime.now(GMT8) - timedelta(days=30 * i)
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = datetime.now(GMT8)
+            else:
+                next_month = month_start + timedelta(days=32)
+                month_end = next_month.replace(day=1) - timedelta(days=1)
+            
+            cursor.execute(
+                """
+                SELECT COUNT(*) as count
+                FROM compost_batch
+                WHERE status = 'completed'
+                  AND start_date >= %s AND start_date <= %s
+                """,
+                (month_start, month_end)
+            )
+            count_row = cursor.fetchone()
+            cycles_by_month.append({
+                'month': month_start.strftime('%Y-%m'),
+                'count': count_row['count'] if count_row else 0
+            })
+        
+        cycles_by_month.reverse()  # Oldest to newest
+        
+        # Temperature trend (average per month for last 6 months)
+        temperature_trend = []
+        for i in range(6):
+            month_date = datetime.now(GMT8) - timedelta(days=30 * i)
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = datetime.now(GMT8)
+            else:
+                next_month = month_start + timedelta(days=32)
+                month_end = next_month.replace(day=1) - timedelta(days=1)
+            
+            month_start_utc = month_start.astimezone(timezone.utc) - timedelta(hours=8)
+            month_end_utc = month_end.astimezone(timezone.utc) - timedelta(hours=8)
+            
+            cursor.execute(
+                """
+                SELECT AVG(temperature) as avg_temp
+                FROM sensor_data
+                WHERE timestamp >= %s AND timestamp <= %s
+                  AND timestamp <= NOW() + INTERVAL '1 day'
+                """,
+                (month_start_utc, month_end_utc)
+            )
+            temp_row = cursor.fetchone()
+            avg_temp_month = float(temp_row['avg_temp']) if temp_row['avg_temp'] else 0.0
+            temperature_trend.append({
+                'month': month_start.strftime('%Y-%m'),
+                'average_temperature': round(avg_temp_month, 1)
+            })
+        
+        temperature_trend.reverse()
+        
+        # Waste processed trend (total waste per month for last 6 months)
+        waste_processed_trend = []
+        for i in range(6):
+            month_date = datetime.now(GMT8) - timedelta(days=30 * i)
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = datetime.now(GMT8)
+            else:
+                next_month = month_start + timedelta(days=32)
+                month_end = next_month.replace(day=1) - timedelta(days=1)
+            
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(green_waste_kg + brown_waste_kg), 0) as total_waste
+                FROM compost_batch
+                WHERE status = 'completed'
+                  AND start_date >= %s AND start_date <= %s
+                """,
+                (month_start, month_end)
+            )
+            waste_row = cursor.fetchone()
+            total_waste_month = float(waste_row['total_waste']) if waste_row['total_waste'] else 0.0
+            waste_processed_trend.append({
+                'month': month_start.strftime('%Y-%m'),
+                'total_waste_kg': round(total_waste_month, 2)
+            })
+        
+        waste_processed_trend.reverse()
+        
+        cursor.close()
+        conn.close()
+        
+        return CycleAnalytics(
+            total_completed_cycles=len(cycles),
+            average_composting_days=round(average_days, 1),
+            total_composted_waste_kg=round(total_waste_kg, 2),
+            average_temperature=round(avg_temp, 1),
+            average_humidity=round(avg_hum, 1),
+            optimization_enabled_percentage=optimization_percentage,
+            cycles_by_month=cycles_by_month,
+            temperature_trend=temperature_trend,
+            waste_processed_trend=waste_processed_trend
+        )
+        
+    except Exception as e:
+        logger.error(f"Error retrieving completed cycles analytics: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error retrieving analytics: {str(e)}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(

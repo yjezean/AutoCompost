@@ -328,5 +328,24 @@ class ApiService {
       throw Exception('Error previewing cycle: $e');
     }
   }
+
+  // Get completed cycles analytics
+  static Future<Map<String, dynamic>> getCompletedCyclesAnalytics() async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final response = await http.get(
+        Uri.parse('$baseUrl/analytics/completed-cycles'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        throw Exception('Failed to load analytics: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error fetching analytics: $e');
+    }
+  }
 }
 
