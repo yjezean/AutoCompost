@@ -780,6 +780,65 @@ async def activate_cycle(cycle_id: int):
 # Import calculation utilities
 from compost_calculations import calculate_cn_ratio
 
+class CyclePreviewRequest(BaseModel):
+    green_waste_kg: float
+    start_date: datetime
+
+class CyclePreviewResponse(BaseModel):
+    brown_waste_kg: float
+    total_volume_liters: float
+    projected_end_date: datetime
+    green_volume_liters: float
+    brown_volume_liters: float
+    duration_days: int
+
+@app.post("/api/v1/cycles/preview", response_model=CyclePreviewResponse)
+async def preview_cycle(preview: CyclePreviewRequest):
+    """
+    Preview cycle calculations without creating a cycle
+    Calculates brown waste, total volume, and projected end date based on green waste
+    """
+    try:
+        if preview.green_waste_kg <= 0:
+            raise HTTPException(status_code=400, detail="Green waste must be greater than 0")
+        
+        # Calculate brown waste (for optimal C:N ratio of 27.5)
+        # Formula: B = G * (27.5 - 20) / (60 - 27.5) ≈ G * 0.231
+        brown_waste_kg = preview.green_waste_kg * 0.231
+        
+        # Calculate volumes
+        # Green waste density: 0.5 kg/L (kitchen scraps)
+        # Brown waste density: 0.1 kg/L (dry leaves)
+        GREEN_DENSITY = 0.5
+        BROWN_DENSITY = 0.1
+        
+        green_volume_liters = preview.green_waste_kg / GREEN_DENSITY
+        brown_volume_liters = brown_waste_kg / BROWN_DENSITY
+        total_volume_liters = green_volume_liters + brown_volume_liters
+        
+        # Calculate projected end date
+        # Base: 21 days + 1 day per 5 liters, max 90 days
+        base_days = 21
+        additional_days = int(total_volume_liters / 5.0)
+        total_days = base_days + additional_days
+        total_days = min(total_days, 90)  # Cap at 90 days
+        projected_end_date = preview.start_date + timedelta(days=total_days)
+        
+        return CyclePreviewResponse(
+            brown_waste_kg=round(brown_waste_kg, 3),
+            total_volume_liters=round(total_volume_liters, 2),
+            projected_end_date=projected_end_date,
+            green_volume_liters=round(green_volume_liters, 2),
+            brown_volume_liters=round(brown_volume_liters, 2),
+            duration_days=total_days
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error calculating preview: {e}")
+        raise HTTPException(status_code=500, detail=f"Error calculating preview: {str(e)}")
+
 @app.post("/api/v1/cycles/{cycle_id}/calculate-ratio", response_model=CNRatioResponse)
 async def calculate_cycle_ratio(cycle_id: int):
     """

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../providers/cycle_provider.dart';
 import '../models/compost_batch.dart';
 import '../theme/app_theme.dart';
+import '../services/api_service.dart';
 
 class CycleCreateScreen extends StatefulWidget {
   const CycleCreateScreen({super.key});
@@ -15,14 +16,14 @@ class CycleCreateScreen extends StatefulWidget {
 class _CycleCreateScreenState extends State<CycleCreateScreen> {
   final _formKey = GlobalKey<FormState>();
   final _greenController = TextEditingController();
-  final _brownController = TextEditingController();
   DateTime _startDate = DateTime.now();
   DateTime? _projectedEndDate;
   double _organicWasteKg = 0.0;
-  double _brownWasteKg = 0.0;
   double? _initialVolumeLiters;
   double? _suggestedBrownKg;
   bool _isCreating = false;
+  bool _isPreviewing = false;
+  bool _hasPreviewed = false;
   static const double MAX_ORGANIC_WASTE_KG = 1.0;
   
   // Density constants (kg per liter)
@@ -33,59 +34,109 @@ class _CycleCreateScreenState extends State<CycleCreateScreen> {
   void initState() {
     super.initState();
     _greenController.addListener(_calculateAll);
-    _brownController.addListener(_calculateAll);
     _calculateAll();
   }
 
   @override
   void dispose() {
     _greenController.dispose();
-    _brownController.dispose();
     super.dispose();
   }
 
   void _calculateAll() {
-    // Calculate volume from organic and brown waste
+    // Get organic waste input
     final organicKg = double.tryParse(_greenController.text) ?? 0.0;
-    final brownKg = double.tryParse(_brownController.text) ?? 0.0;
+    
+    // Auto-calculate values immediately when user enters organic waste
+    // This provides instant feedback, but user can also use Preview button for API calculation
+    double? calculatedBrownKg;
+    if (organicKg > 0) {
+      // Formula: B = G * (27.5 - 20) / (60 - 27.5) ≈ G * 0.231
+      calculatedBrownKg = organicKg * 0.231;
+    }
     
     // Calculate volumes
     final organicVolume = organicKg > 0 ? organicKg / ORGANIC_WASTE_DENSITY : 0.0;
-    final brownVolume = brownKg > 0 ? brownKg / BROWN_WASTE_DENSITY : 0.0;
+    final brownVolume = calculatedBrownKg != null && calculatedBrownKg > 0 
+        ? calculatedBrownKg / BROWN_WASTE_DENSITY 
+        : 0.0;
     final totalVolume = organicVolume + brownVolume;
     
-    setState(() {
-      _organicWasteKg = organicKg;
-      _brownWasteKg = brownKg;
-      _initialVolumeLiters = totalVolume > 0 ? totalVolume : null;
-    });
-
-    // Calculate projected end date from total volume
+    // Calculate projected end date
+    DateTime? calculatedEndDate;
     if (totalVolume > 0) {
-      // Base: 21 days + 1 day per 5 liters, max 90 days
       final baseDays = 21;
       final additionalDays = (totalVolume / 5.0).ceil();
       final totalDays = (baseDays + additionalDays).clamp(21, 90);
-      setState(() {
-        _projectedEndDate = _startDate.add(Duration(days: totalDays));
-      });
+      calculatedEndDate = _startDate.add(Duration(days: totalDays));
     } else {
-      setState(() {
-        _projectedEndDate = _startDate.add(const Duration(days: 21));
-      });
+      calculatedEndDate = _startDate.add(const Duration(days: 21));
+    }
+    
+    setState(() {
+      _organicWasteKg = organicKg;
+      _suggestedBrownKg = calculatedBrownKg;
+      _initialVolumeLiters = totalVolume > 0 ? totalVolume : null;
+      _projectedEndDate = calculatedEndDate;
+      // Reset preview flag when user changes input
+      if (organicKg == 0) {
+        _hasPreviewed = false;
+      }
+    });
+  }
+
+  Future<void> _previewCycle() async {
+    final greenKg = double.tryParse(_greenController.text) ?? 0.0;
+    
+    if (greenKg <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter organic waste amount first'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+      return;
     }
 
-    // Calculate suggested brown waste
-    if (organicKg > 0) {
-      // Formula: B = G * (27.5 - 20) / (60 - 27.5) ≈ G * 0.231
-      final suggested = organicKg * 0.231;
+    setState(() {
+      _isPreviewing = true;
+    });
+
+    try {
+      final preview = await ApiService.previewCycle(greenKg, _startDate);
+      
       setState(() {
-        _suggestedBrownKg = suggested;
+        _suggestedBrownKg = (preview['brown_waste_kg'] as num).toDouble();
+        _initialVolumeLiters = (preview['total_volume_liters'] as num).toDouble();
+        _projectedEndDate = DateTime.parse(preview['projected_end_date'] as String);
+        _organicWasteKg = greenKg;
+        _hasPreviewed = true;
       });
-    } else {
-      setState(() {
-        _suggestedBrownKg = null;
-      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Preview calculated successfully'),
+            backgroundColor: AppTheme.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error calculating preview: $e'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isPreviewing = false;
+        });
+      }
     }
   }
 
@@ -131,7 +182,7 @@ class _CycleCreateScreenState extends State<CycleCreateScreen> {
         status: 'planning',
         createdAt: DateTime.now(),
         greenWasteKg: _organicWasteKg > 0 ? _organicWasteKg : null,
-        brownWasteKg: _brownWasteKg > 0 ? _brownWasteKg : null,
+        brownWasteKg: _suggestedBrownKg != null && _suggestedBrownKg! > 0 ? _suggestedBrownKg : null,
         initialVolumeLiters: _initialVolumeLiters,
       );
 
@@ -285,135 +336,264 @@ class _CycleCreateScreenState extends State<CycleCreateScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Suggested Brown Waste Display
-            if (_suggestedBrownKg != null && _organicWasteKg > 0) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.info.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppTheme.info.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.lightbulb_outline, color: AppTheme.info),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Suggested Brown Waste:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.info,
-                            ),
-                          ),
-                          Text(
-                            '${_suggestedBrownKg!.toStringAsFixed(2)} kg',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.info,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          const Text(
-                            'Add this amount to balance C:N ratio',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+            // Preview button
+            if (_organicWasteKg > 0) ...[
+              OutlinedButton.icon(
+                onPressed: _isPreviewing ? null : _previewCycle,
+                icon: _isPreviewing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Icon(_hasPreviewed ? Icons.refresh : Icons.preview),
+                label: Text(_isPreviewing 
+                    ? 'Calculating...' 
+                    : (_hasPreviewed ? 'Recalculate' : 'Preview Calculations')),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
               const SizedBox(height: 16),
             ],
 
-            // Brown waste input
-            TextFormField(
-              controller: _brownController,
-              decoration: InputDecoration(
-                labelText: 'Brown Waste (kg)',
-                hintText: _suggestedBrownKg != null
-                    ? 'Suggested: ${_suggestedBrownKg!.toStringAsFixed(2)} kg'
-                    : 'Enter amount',
-                prefixIcon: const Icon(Icons.forest, color: AppTheme.warning),
-                suffixIcon: IconButton(
-                  icon: const Icon(Icons.info_outline, color: AppTheme.warning),
-                  onPressed: () => _showBrownWasteDialog(context),
-                  tooltip: 'What is Brown Waste?',
+            // Brown waste display (auto-calculated, read-only)
+            if (_suggestedBrownKg != null && _suggestedBrownKg! > 0) ...[
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.warning.withOpacity(0.15),
+                      AppTheme.warning.withOpacity(0.08),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.warning.withOpacity(0.4),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.warning.withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                suffixText: 'kg',
-                border: const OutlineInputBorder(),
-                helperText: 'Add based on system suggestion',
-              ),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              onSaved: (value) {
-                _brownWasteKg = value != null && value.isNotEmpty
-                    ? (double.tryParse(value) ?? 0.0)
-                    : 0.0;
-              },
-              validator: (value) {
-                if (value != null && value.isNotEmpty) {
-                  final weight = double.tryParse(value);
-                  if (weight == null || weight < 0) {
-                    return 'Please enter a valid weight';
-                  }
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 24),
-
-            // Calculated Volume Display
-            if (_initialVolumeLiters != null && _initialVolumeLiters! > 0) ...[
-              Card(
-                color: AppTheme.info.withOpacity(0.1),
                 child: Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(12),
                   child: Row(
                     children: [
-                      const Icon(Icons.water_drop, color: AppTheme.info, size: 32),
-                      const SizedBox(width: 16),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppTheme.warning,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.warning.withOpacity(0.3),
+                              blurRadius: 3,
+                              offset: const Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.forest,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Calculated Total Volume',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.info,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
                             Text(
-                              '${_initialVolumeLiters!.toStringAsFixed(2)} liters',
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.info,
-                              ),
+                              'Required Brown Waste',
+                              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.warning,
+                                  ),
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  '${_suggestedBrownKg!.toStringAsFixed(3)}',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.warning,
+                                        fontSize: 22,
+                                      ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'kg',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: AppTheme.warning,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
                             Text(
-                              'Organic: ${(_organicWasteKg / ORGANIC_WASTE_DENSITY).toStringAsFixed(2)} L'
-                              '${_brownWasteKg > 0 ? ' + Brown: ${(_brownWasteKg / BROWN_WASTE_DENSITY).toStringAsFixed(2)} L' : ''}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: AppTheme.textSecondary,
-                              ),
+                              'Auto-calculated to balance C:N ratio',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: AppTheme.textSecondary,
+                                    fontSize: 10,
+                                  ),
                             ),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline, color: AppTheme.warning, size: 20),
+                        onPressed: () => _showBrownWasteDialog(context),
+                        tooltip: 'What is Brown Waste?',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 12),
+            ],
+            const SizedBox(height: 24),
+
+            // Calculated Volume Display
+            if (_initialVolumeLiters != null && _initialVolumeLiters! > 0) ...[
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.info.withOpacity(0.15),
+                      AppTheme.info.withOpacity(0.08),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.info.withOpacity(0.4),
+                    width: 2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppTheme.info.withOpacity(0.2),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.info,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppTheme.info.withOpacity(0.3),
+                                  blurRadius: 3,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.water_drop,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.baseline,
+                              textBaseline: TextBaseline.alphabetic,
+                              children: [
+                                Text(
+                                  'Total Volume: ',
+                                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.info,
+                                      ),
+                                ),
+                                Text(
+                                  '${_initialVolumeLiters!.toStringAsFixed(2)}',
+                                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.info,
+                                        fontSize: 22,
+                                      ),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'L',
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                        color: AppTheme.info,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_suggestedBrownKg != null && _suggestedBrownKg! > 0) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              Expanded(
+                                child: _buildVolumeBreakdown(
+                                  context,
+                                  'Organic',
+                                  '${(_organicWasteKg / ORGANIC_WASTE_DENSITY).toStringAsFixed(2)} L',
+                                  AppTheme.primaryGreen,
+                                  Icons.eco,
+                                ),
+                              ),
+                              Container(
+                                width: 1,
+                                height: 24,
+                                color: AppTheme.divider,
+                              ),
+                              Expanded(
+                                child: _buildVolumeBreakdown(
+                                  context,
+                                  'Brown',
+                                  '${(_suggestedBrownKg! / BROWN_WASTE_DENSITY).toStringAsFixed(2)} L',
+                                  AppTheme.warning,
+                                  Icons.forest,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
             ],
             const SizedBox(height: 32),
 
@@ -861,6 +1041,38 @@ class _CycleCreateScreenState extends State<CycleCreateScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildVolumeBreakdown(
+    BuildContext context,
+    String label,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: AppTheme.textSecondary,
+                fontSize: 10,
+              ),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: color,
+                fontSize: 11,
+              ),
+        ),
+      ],
     );
   }
 }

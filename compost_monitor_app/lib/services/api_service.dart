@@ -304,5 +304,29 @@ class ApiService {
       throw Exception('Error updating optimization status: $e');
     }
   }
+
+  // Preview cycle calculations
+  static Future<Map<String, dynamic>> previewCycle(double greenWasteKg, DateTime startDate) async {
+    try {
+      final baseUrl = await getBaseUrl();
+      final response = await http.post(
+        Uri.parse('$baseUrl/cycles/preview'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'green_waste_kg': greenWasteKg,
+          'start_date': startDate.toIso8601String(),
+        }),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      } else {
+        final errorBody = json.decode(response.body);
+        throw Exception('Failed to preview cycle: ${errorBody['detail'] ?? response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error previewing cycle: $e');
+    }
+  }
 }
 
