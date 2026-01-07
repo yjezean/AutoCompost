@@ -69,17 +69,25 @@ class _WasteInputFormState extends State<WasteInputForm> {
   void _onInputChanged() {
     final greenKg = double.tryParse(_greenController.text) ?? 0.0;
     final brownKg = double.tryParse(_brownController.text) ?? 0.0;
-    
-    if (widget.onChanged != null) {
-      widget.onChanged!(greenKg, brownKg);
-    }
 
+    // Only calculate ratio on input change, don't trigger onChanged callback
+    // onChanged should be called explicitly via save button or onSubmitted
     if (greenKg > 0 && brownKg > 0 && widget.cycleId != null) {
       _calculateRatio();
     } else {
       setState(() {
         _cnRatio = null;
       });
+    }
+  }
+
+  // Method to get current values and trigger onChanged callback
+  void save() {
+    final greenKg = double.tryParse(_greenController.text) ?? 0.0;
+    final brownKg = double.tryParse(_brownController.text) ?? 0.0;
+    
+    if (widget.onChanged != null) {
+      widget.onChanged!(greenKg, brownKg);
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../providers/cycle_provider.dart';
@@ -7,7 +8,6 @@ import '../models/cn_ratio.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/cn_ratio_indicator.dart';
-import '../widgets/waste_input_form.dart';
 
 class CycleDetailScreen extends StatefulWidget {
   final int cycleId;
@@ -366,17 +366,36 @@ class _CycleDetailScreenState extends State<CycleDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Edit Waste Amounts',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Edit Waste Amounts',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _isEditing = false;
+                              });
+                            },
+                            child: const Text('Cancel'),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 16),
-                      WasteInputForm(
+                      _EditWasteForm(
                         cycleId: widget.cycleId,
                         initialGreenWaste: _cycle!.greenWasteKg,
                         initialBrownWaste: _cycle!.brownWasteKg,
-                        onChanged: (greenKg, brownKg) {
-                          _updateWasteAmounts(greenKg, brownKg);
+                        onSave: (greenKg, brownKg) async {
+                          await _updateWasteAmounts(greenKg, brownKg);
+                          if (mounted) {
+                            setState(() {
+                              _isEditing = false;
+                            });
+                          }
                         },
                       ),
                     ],
@@ -575,6 +594,232 @@ class _CycleDetailScreenState extends State<CycleDetailScreen> {
     if (ratio >= 25 && ratio <= 30) return AppTheme.success;
     if (ratio < 25) return AppTheme.warning;
     return AppTheme.info;
+  }
+}
+
+// Edit form widget with save button
+class _EditWasteForm extends StatefulWidget {
+  final int? cycleId;
+  final double? initialGreenWaste;
+  final double? initialBrownWaste;
+  final Function(double greenKg, double brownKg) onSave;
+
+  const _EditWasteForm({
+    required this.cycleId,
+    this.initialGreenWaste,
+    this.initialBrownWaste,
+    required this.onSave,
+  });
+
+  @override
+  State<_EditWasteForm> createState() => _EditWasteFormState();
+}
+
+class _EditWasteFormState extends State<_EditWasteForm> {
+  final _greenController = TextEditingController();
+  final _brownController = TextEditingController();
+  CNRatio? _cnRatio;
+  bool _isCalculating = false;
+  bool _isSaving = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialGreenWaste != null) {
+      _greenController.text = widget.initialGreenWaste!.toStringAsFixed(2);
+    }
+    if (widget.initialBrownWaste != null) {
+      _brownController.text = widget.initialBrownWaste!.toStringAsFixed(2);
+    }
+    _greenController.addListener(_onInputChanged);
+    _brownController.addListener(_onInputChanged);
+    // Calculate initial ratio if values exist
+    if (widget.initialGreenWaste != null &&
+        widget.initialBrownWaste != null &&
+        widget.initialGreenWaste! > 0 &&
+        widget.initialBrownWaste! > 0 &&
+        widget.cycleId != null) {
+      _calculateRatio();
+    }
+  }
+
+  @override
+  void dispose() {
+    _greenController.dispose();
+    _brownController.dispose();
+    super.dispose();
+  }
+
+  void _onInputChanged() {
+    final greenKg = double.tryParse(_greenController.text) ?? 0.0;
+    final brownKg = double.tryParse(_brownController.text) ?? 0.0;
+
+    // Only calculate ratio on input change, don't trigger save
+    if (greenKg > 0 && brownKg > 0 && widget.cycleId != null) {
+      _calculateRatio();
+    } else {
+      setState(() {
+        _cnRatio = null;
+      });
+    }
+  }
+
+  Future<void> _calculateRatio() async {
+    final greenKg = double.tryParse(_greenController.text) ?? 0.0;
+    final brownKg = double.tryParse(_brownController.text) ?? 0.0;
+
+    if (greenKg <= 0 || brownKg <= 0 || widget.cycleId == null) {
+      return;
+    }
+
+    setState(() {
+      _isCalculating = true;
+      _error = null;
+    });
+
+    try {
+      final ratio = await ApiService.calculateCNRatio(
+        widget.cycleId!,
+        greenKg,
+        brownKg,
+      );
+      setState(() {
+        _cnRatio = ratio;
+        _error = null;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _cnRatio = null;
+      });
+    } finally {
+      setState(() {
+        _isCalculating = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Organic waste input
+        TextField(
+          controller: _greenController,
+          decoration: InputDecoration(
+            labelText: 'Organic Waste (kg)',
+            hintText: 'Enter amount',
+            prefixIcon: const Icon(Icons.eco, color: AppTheme.primaryGreen),
+            suffixText: 'kg',
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+          ],
+        ),
+        const SizedBox(height: 16),
+        
+        // Brown waste input
+        TextField(
+          controller: _brownController,
+          decoration: InputDecoration(
+            labelText: 'Brown Waste (kg)',
+            hintText: 'Enter amount',
+            prefixIcon: const Icon(Icons.forest, color: AppTheme.warning),
+            suffixText: 'kg',
+            border: const OutlineInputBorder(),
+          ),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
+          ],
+        ),
+        
+        // C:N Ratio indicator
+        if (_cnRatio != null) ...[
+          const SizedBox(height: 16),
+          CNRatioIndicator(cnRatio: _cnRatio!),
+        ],
+        
+        if (_isCalculating) ...[
+          const SizedBox(height: 16),
+          const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ],
+        
+        if (_error != null) ...[
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.error.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.error_outline, color: AppTheme.error),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _error!,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: AppTheme.error,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        
+        const SizedBox(height: 16),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton(
+            onPressed: _isSaving ? null : () async {
+              setState(() {
+                _isSaving = true;
+              });
+              try {
+                final greenKg = double.tryParse(_greenController.text) ?? 0.0;
+                final brownKg = double.tryParse(_brownController.text) ?? 0.0;
+                await widget.onSave(greenKg, brownKg);
+              } finally {
+                if (mounted) {
+                  setState(() {
+                    _isSaving = false;
+                  });
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+            ),
+            child: _isSaving
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    'Save Changes',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
