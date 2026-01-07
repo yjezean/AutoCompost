@@ -139,6 +139,15 @@ class CompostMQTTListener:
                 # Convert to GMT+8 if in different timezone
                 timestamp = timestamp.astimezone(GMT8)
             
+            # Validate timestamp: reject future dates more than 1 day ahead or past dates older than 1 year
+            now_gmt8 = datetime.now(GMT8)
+            if timestamp > now_gmt8 + timedelta(days=1):
+                logger.error(f"Rejecting invalid future timestamp: {timestamp} (current: {now_gmt8})")
+                return  # Don't save corrupted data
+            if timestamp < now_gmt8 - timedelta(days=365):
+                logger.warning(f"Timestamp is more than 1 year old: {timestamp} (current: {now_gmt8}), using current time")
+                timestamp = now_gmt8  # Use current time instead
+            
             cursor.execute(
                 """
                 INSERT INTO sensor_data (timestamp, temperature, humidity)

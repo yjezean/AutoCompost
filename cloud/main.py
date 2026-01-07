@@ -150,7 +150,8 @@ async def get_sensor_data(
         # So we need to treat them as GMT+8 when querying
         
         # Calculate date range in GMT+8
-        end_date_gmt8 = datetime.now(GMT8)
+        # Add 1 minute buffer to end_date to ensure we capture the very latest data
+        end_date_gmt8 = datetime.now(GMT8) + timedelta(minutes=1)
         start_date_gmt8 = end_date_gmt8 - timedelta(days=days)
         
         # Convert to UTC for database query (database thinks it's UTC but it's actually GMT+8)
@@ -159,17 +160,43 @@ async def get_sensor_data(
         start_date_utc = start_date_gmt8.astimezone(timezone.utc) - timedelta(hours=8)
         
         # Try date-filtered query
+        # Exclude obviously invalid timestamps (future dates more than 1 day ahead)
         cursor.execute(
             """
             SELECT timestamp, temperature, humidity
             FROM sensor_data
-            WHERE timestamp >= %s AND timestamp <= %s
+            WHERE timestamp >= %s 
+              AND timestamp <= %s
+              AND timestamp <= NOW() + INTERVAL '1 day'
             ORDER BY timestamp ASC
             """,
             (start_date_utc, end_date_utc)
         )
         
         rows = cursor.fetchall()
+        
+        # Always ensure we have the absolute latest record, even if it's slightly outside the range
+        # This handles race conditions where data arrives during query execution
+        # Exclude obviously invalid timestamps (future dates more than 1 day ahead)
+        cursor.execute(
+            """
+            SELECT timestamp, temperature, humidity
+            FROM sensor_data
+            WHERE timestamp <= NOW() + INTERVAL '1 day'
+            ORDER BY timestamp DESC
+            LIMIT 1
+            """
+        )
+        latest_row = cursor.fetchone()
+        
+        # If we got data from date filter, check if latest record is already included
+        if len(rows) > 0 and latest_row:
+            # Check if latest record is already in our results
+            latest_timestamp = latest_row['timestamp']
+            if not any(row['timestamp'] == latest_timestamp for row in rows):
+                # Latest record not in results, add it
+                rows.append(latest_row)
+                logger.info(f"Added latest record ({latest_timestamp}) to results")
         
         # If no data found with date filter, get latest records regardless of date
         if len(rows) == 0:
@@ -180,6 +207,7 @@ async def get_sensor_data(
                 """
                 SELECT timestamp, temperature, humidity
                 FROM sensor_data
+                WHERE timestamp <= NOW() + INTERVAL '1 day'
                 ORDER BY timestamp DESC
                 LIMIT %s
                 """,
@@ -189,6 +217,9 @@ async def get_sensor_data(
             # Reverse to get chronological order
             rows = list(reversed(rows))
             logger.info(f"Fallback query returned {len(rows)} latest records")
+        
+        # Sort by timestamp to ensure chronological order
+        rows = sorted(rows, key=lambda x: x['timestamp'])
         
         cursor.close()
         conn.close()
