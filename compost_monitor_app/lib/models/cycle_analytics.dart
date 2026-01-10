@@ -7,6 +7,7 @@ class CycleAnalytics {
   final double optimizationEnabledPercentage;
   final List<MonthData> cyclesByMonth;
   final List<TemperatureTrend> temperatureTrend;
+  final List<HumidityTrend> humidityTrend;
   final List<WasteTrend> wasteProcessedTrend;
 
   CycleAnalytics({
@@ -18,6 +19,7 @@ class CycleAnalytics {
     required this.optimizationEnabledPercentage,
     required this.cyclesByMonth,
     required this.temperatureTrend,
+    required this.humidityTrend,
     required this.wasteProcessedTrend,
   });
 
@@ -38,6 +40,9 @@ class CycleAnalytics {
       temperatureTrend: (json['temperature_trend'] as List)
           .map(
               (item) => TemperatureTrend.fromJson(item as Map<String, dynamic>))
+          .toList(),
+      humidityTrend: (json['humidity_trend'] as List)
+          .map((item) => HumidityTrend.fromJson(item as Map<String, dynamic>))
           .toList(),
       wasteProcessedTrend: (json['waste_processed_trend'] as List)
           .map((item) => WasteTrend.fromJson(item as Map<String, dynamic>))
@@ -70,6 +75,20 @@ class TemperatureTrend {
     return TemperatureTrend(
       month: json['month'] as String,
       averageTemperature: (json['average_temperature'] as num).toDouble(),
+    );
+  }
+}
+
+class HumidityTrend {
+  final String month;
+  final double averageHumidity;
+
+  HumidityTrend({required this.month, required this.averageHumidity});
+
+  factory HumidityTrend.fromJson(Map<String, dynamic> json) {
+    return HumidityTrend(
+      month: json['month'] as String,
+      averageHumidity: (json['average_humidity'] as num).toDouble(),
     );
   }
 }

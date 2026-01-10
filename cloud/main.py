@@ -1076,6 +1076,7 @@ class CycleAnalytics(BaseModel):
     optimization_enabled_percentage: float
     cycles_by_month: List[dict]
     temperature_trend: List[dict]
+    humidity_trend: List[dict]
     waste_processed_trend: List[dict]
 
 @app.get("/api/v1/analytics/completed-cycles", response_model=CycleAnalytics)
@@ -1111,6 +1112,7 @@ async def get_completed_cycles_analytics():
                 optimization_enabled_percentage=0.0,
                 cycles_by_month=[],
                 temperature_trend=[],
+                humidity_trend=[],
                 waste_processed_trend=[]
             )
         
@@ -1237,6 +1239,38 @@ async def get_completed_cycles_analytics():
         
         temperature_trend.reverse()
         
+        # Humidity trend (average per month for last 6 months)
+        humidity_trend = []
+        for i in range(6):
+            month_date = datetime.now(GMT8) - timedelta(days=30 * i)
+            month_start = month_date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = datetime.now(GMT8)
+            else:
+                next_month = month_start + timedelta(days=32)
+                month_end = next_month.replace(day=1) - timedelta(days=1)
+            
+            month_start_utc = month_start.astimezone(timezone.utc) - timedelta(hours=8)
+            month_end_utc = month_end.astimezone(timezone.utc) - timedelta(hours=8)
+            
+            cursor.execute(
+                """
+                SELECT AVG(humidity) as avg_hum
+                FROM sensor_data
+                WHERE timestamp >= %s AND timestamp <= %s
+                  AND timestamp <= NOW() + INTERVAL '1 day'
+                """,
+                (month_start_utc, month_end_utc)
+            )
+            hum_row = cursor.fetchone()
+            avg_hum_month = float(hum_row['avg_hum']) if hum_row['avg_hum'] else 0.0
+            humidity_trend.append({
+                'month': month_start.strftime('%Y-%m'),
+                'average_humidity': round(avg_hum_month, 1)
+            })
+        
+        humidity_trend.reverse()
+        
         # Waste processed trend (total waste per month for last 6 months)
         waste_processed_trend = []
         for i in range(6):
@@ -1278,6 +1312,7 @@ async def get_completed_cycles_analytics():
             optimization_enabled_percentage=optimization_percentage,
             cycles_by_month=cycles_by_month,
             temperature_trend=temperature_trend,
+            humidity_trend=humidity_trend,
             waste_processed_trend=waste_processed_trend
         )
         

@@ -106,12 +106,12 @@ class _CompletedCyclesAnalyticsScreenState
                           _buildTemperatureTrendChart(),
                           const SizedBox(height: 24),
 
-                          // Waste Processed Trend Chart
-                          _buildWasteTrendChart(),
+                          // Humidity Trend Chart
+                          _buildHumidityTrendChart(),
                           const SizedBox(height: 24),
 
-                          // Optimization Info
-                          _buildOptimizationCard(),
+                          // Waste Processed Trend Chart
+                          _buildWasteTrendChart(),
                         ],
                       ),
                     ),
@@ -317,7 +317,16 @@ class _CompletedCyclesAnalyticsScreenState
       return const SizedBox.shrink();
     }
 
-    final spots = _analytics!.temperatureTrend.asMap().entries.map((entry) {
+    // Filter out current month (first item after reverse)
+    final filteredTrend = _analytics!.temperatureTrend.length > 1
+        ? _analytics!.temperatureTrend.sublist(1)
+        : <TemperatureTrend>[];
+
+    if (filteredTrend.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final spots = filteredTrend.asMap().entries.map((entry) {
       return FlSpot(entry.key.toDouble(), entry.value.averageTemperature);
     }).toList();
 
@@ -353,11 +362,9 @@ class _CompletedCyclesAnalyticsScreenState
                         showTitles: true,
                         reservedSize: 30,
                         getTitlesWidget: (value, meta) {
-                          if (value.toInt() >=
-                              _analytics!.temperatureTrend.length)
+                          if (value.toInt() >= filteredTrend.length)
                             return const Text('');
-                          final month =
-                              _analytics!.temperatureTrend[value.toInt()].month;
+                          final month = filteredTrend[value.toInt()].month;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
@@ -411,12 +418,127 @@ class _CompletedCyclesAnalyticsScreenState
     );
   }
 
+  Widget _buildHumidityTrendChart() {
+    if (_analytics!.humidityTrend.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Filter out current month (first item after reverse)
+    final filteredTrend = _analytics!.humidityTrend.length > 1
+        ? _analytics!.humidityTrend.sublist(1)
+        : <HumidityTrend>[];
+
+    if (filteredTrend.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final spots = filteredTrend.asMap().entries.map((entry) {
+      return FlSpot(entry.key.toDouble(), entry.value.averageHumidity);
+    }).toList();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Average Humidity Trend',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) => FlLine(
+                      color: AppTheme.divider,
+                      strokeWidth: 1,
+                    ),
+                  ),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 30,
+                        getTitlesWidget: (value, meta) {
+                          if (value.toInt() >= filteredTrend.length)
+                            return const Text('');
+                          final month = filteredTrend[value.toInt()].month;
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              DateFormat('MMM')
+                                  .format(DateTime.parse('$month-01')),
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppTheme.textSecondary),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(
+                                fontSize: 10, color: AppTheme.textSecondary),
+                          );
+                        },
+                      ),
+                    ),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: spots,
+                      isCurved: true,
+                      color: AppTheme.humHigh,
+                      barWidth: 3,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(
+                        show: true,
+                        color: AppTheme.humHigh.withOpacity(0.1),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildWasteTrendChart() {
     if (_analytics!.wasteProcessedTrend.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final spots = _analytics!.wasteProcessedTrend.asMap().entries.map((entry) {
+    // Filter out current month (first item after reverse)
+    final filteredTrend = _analytics!.wasteProcessedTrend.length > 1
+        ? _analytics!.wasteProcessedTrend.sublist(1)
+        : <WasteTrend>[];
+
+    if (filteredTrend.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final spots = filteredTrend.asMap().entries.map((entry) {
       return FlSpot(entry.key.toDouble(), entry.value.totalWasteKg);
     }).toList();
 
@@ -453,11 +575,9 @@ class _CompletedCyclesAnalyticsScreenState
                         showTitles: true,
                         reservedSize: 30,
                         getTitlesWidget: (value, meta) {
-                          if (value.toInt() >=
-                              _analytics!.wasteProcessedTrend.length)
+                          if (value.toInt() >= filteredTrend.length)
                             return const Text('');
-                          final month = _analytics!
-                              .wasteProcessedTrend[value.toInt()].month;
+                          final month = filteredTrend[value.toInt()].month;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
@@ -503,52 +623,6 @@ class _CompletedCyclesAnalyticsScreenState
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOptimizationCard() {
-    return Card(
-      color: AppTheme.info.withOpacity(0.1),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            const Icon(Icons.auto_awesome, color: AppTheme.info, size: 32),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Optimization Status',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.info,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${_analytics!.optimizationEnabledPercentage.toStringAsFixed(0)}% of time enabled',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.info,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Average Humidity: ${_analytics!.averageHumidity.toStringAsFixed(1)}%',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                    ),
-                  ),
-                ],
               ),
             ),
           ],
