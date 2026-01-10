@@ -24,16 +24,20 @@ class CycleAnalytics {
   factory CycleAnalytics.fromJson(Map<String, dynamic> json) {
     return CycleAnalytics(
       totalCompletedCycles: json['total_completed_cycles'] as int,
-      averageCompostingDays: (json['average_composting_days'] as num).toDouble(),
-      totalCompostedWasteKg: (json['total_composted_waste_kg'] as num).toDouble(),
+      averageCompostingDays:
+          (json['average_composting_days'] as num).toDouble(),
+      totalCompostedWasteKg:
+          (json['total_composted_waste_kg'] as num).toDouble(),
       averageTemperature: (json['average_temperature'] as num).toDouble(),
       averageHumidity: (json['average_humidity'] as num).toDouble(),
-      optimizationEnabledPercentage: (json['optimization_enabled_percentage'] as num).toDouble(),
+      optimizationEnabledPercentage:
+          (json['optimization_enabled_percentage'] as num).toDouble(),
       cyclesByMonth: (json['cycles_by_month'] as List)
           .map((item) => MonthData.fromJson(item as Map<String, dynamic>))
           .toList(),
       temperatureTrend: (json['temperature_trend'] as List)
-          .map((item) => TemperatureTrend.fromJson(item as Map<String, dynamic>))
+          .map(
+              (item) => TemperatureTrend.fromJson(item as Map<String, dynamic>))
           .toList(),
       wasteProcessedTrend: (json['waste_processed_trend'] as List)
           .map((item) => WasteTrend.fromJson(item as Map<String, dynamic>))
@@ -83,4 +87,3 @@ class WasteTrend {
     );
   }
 }
-

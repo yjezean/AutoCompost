@@ -9,10 +9,12 @@ class CompletedCyclesAnalyticsScreen extends StatefulWidget {
   const CompletedCyclesAnalyticsScreen({super.key});
 
   @override
-  State<CompletedCyclesAnalyticsScreen> createState() => _CompletedCyclesAnalyticsScreenState();
+  State<CompletedCyclesAnalyticsScreen> createState() =>
+      _CompletedCyclesAnalyticsScreenState();
 }
 
-class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalyticsScreen> {
+class _CompletedCyclesAnalyticsScreenState
+    extends State<CompletedCyclesAnalyticsScreen> {
   CycleAnalytics? _analytics;
   bool _isLoading = false;
   String? _error;
@@ -62,7 +64,8 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.error_outline, size: 64, color: AppTheme.error),
+                      const Icon(Icons.error_outline,
+                          size: 64, color: AppTheme.error),
                       const SizedBox(height: 16),
                       Text(
                         'Error loading analytics',
@@ -165,7 +168,8 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
     return Card(
       elevation: 2,
       child: Padding(
@@ -224,7 +228,10 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
               child: BarChart(
                 BarChartData(
                   alignment: BarChartAlignment.spaceAround,
-                  maxY: _analytics!.cyclesByMonth.map((e) => e.count.toDouble()).reduce((a, b) => a > b ? a : b) + 1,
+                  maxY: _analytics!.cyclesByMonth
+                          .map((e) => e.count.toDouble())
+                          .reduce((a, b) => a > b ? a : b) +
+                      1,
                   barTouchData: BarTouchData(
                     enabled: true,
                     touchTooltipData: BarTouchTooltipData(
@@ -238,13 +245,17 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
-                          if (value.toInt() >= _analytics!.cyclesByMonth.length) return const Text('');
-                          final month = _analytics!.cyclesByMonth[value.toInt()].month;
+                          if (value.toInt() >= _analytics!.cyclesByMonth.length)
+                            return const Text('');
+                          final month =
+                              _analytics!.cyclesByMonth[value.toInt()].month;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              DateFormat('MMM').format(DateTime.parse('$month-01')),
-                              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              DateFormat('MMM')
+                                  .format(DateTime.parse('$month-01')),
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppTheme.textSecondary),
                             ),
                           );
                         },
@@ -257,13 +268,16 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                         getTitlesWidget: (value, meta) {
                           return Text(
                             value.toInt().toString(),
-                            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 10, color: AppTheme.textSecondary),
                           );
                         },
                       ),
                     ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                   ),
                   gridData: FlGridData(
                     show: true,
@@ -274,7 +288,8 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                     ),
                   ),
                   borderData: FlBorderData(show: false),
-                  barGroups: _analytics!.cyclesByMonth.asMap().entries.map((entry) {
+                  barGroups:
+                      _analytics!.cyclesByMonth.asMap().entries.map((entry) {
                     return BarChartGroupData(
                       x: entry.key,
                       barRods: [
@@ -282,7 +297,8 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                           toY: entry.value.count.toDouble(),
                           color: AppTheme.primaryGreen,
                           width: 20,
-                          borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                          borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(4)),
                         ),
                       ],
                     );
@@ -337,13 +353,18 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                         showTitles: true,
                         reservedSize: 30,
                         getTitlesWidget: (value, meta) {
-                          if (value.toInt() >= _analytics!.temperatureTrend.length) return const Text('');
-                          final month = _analytics!.temperatureTrend[value.toInt()].month;
+                          if (value.toInt() >=
+                              _analytics!.temperatureTrend.length)
+                            return const Text('');
+                          final month =
+                              _analytics!.temperatureTrend[value.toInt()].month;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              DateFormat('MMM').format(DateTime.parse('$month-01')),
-                              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              DateFormat('MMM')
+                                  .format(DateTime.parse('$month-01')),
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppTheme.textSecondary),
                             ),
                           );
                         },
@@ -356,13 +377,16 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                         getTitlesWidget: (value, meta) {
                           return Text(
                             '${value.toInt()}°C',
-                            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 10, color: AppTheme.textSecondary),
                           );
                         },
                       ),
                     ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                   ),
                   borderData: FlBorderData(show: false),
                   lineBarsData: [
@@ -413,6 +437,7 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
               height: 200,
               child: LineChart(
                 LineChartData(
+                  minY: 0,
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: false,
@@ -428,13 +453,18 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                         showTitles: true,
                         reservedSize: 30,
                         getTitlesWidget: (value, meta) {
-                          if (value.toInt() >= _analytics!.wasteProcessedTrend.length) return const Text('');
-                          final month = _analytics!.wasteProcessedTrend[value.toInt()].month;
+                          if (value.toInt() >=
+                              _analytics!.wasteProcessedTrend.length)
+                            return const Text('');
+                          final month = _analytics!
+                              .wasteProcessedTrend[value.toInt()].month;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
-                              DateFormat('MMM').format(DateTime.parse('$month-01')),
-                              style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                              DateFormat('MMM')
+                                  .format(DateTime.parse('$month-01')),
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppTheme.textSecondary),
                             ),
                           );
                         },
@@ -447,13 +477,16 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
                         getTitlesWidget: (value, meta) {
                           return Text(
                             '${value.toInt()}kg',
-                            style: const TextStyle(fontSize: 10, color: AppTheme.textSecondary),
+                            style: const TextStyle(
+                                fontSize: 10, color: AppTheme.textSecondary),
                           );
                         },
                       ),
                     ),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false)),
                   ),
                   borderData: FlBorderData(show: false),
                   lineBarsData: [
@@ -524,4 +557,3 @@ class _CompletedCyclesAnalyticsScreenState extends State<CompletedCyclesAnalytic
     );
   }
 }
-
