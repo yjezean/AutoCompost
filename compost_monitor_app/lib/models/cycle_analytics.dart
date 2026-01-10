@@ -41,9 +41,12 @@ class CycleAnalytics {
           .map(
               (item) => TemperatureTrend.fromJson(item as Map<String, dynamic>))
           .toList(),
-      humidityTrend: (json['humidity_trend'] as List)
-          .map((item) => HumidityTrend.fromJson(item as Map<String, dynamic>))
-          .toList(),
+      humidityTrend: json['humidity_trend'] != null
+          ? (json['humidity_trend'] as List)
+              .map((item) =>
+                  HumidityTrend.fromJson(item as Map<String, dynamic>))
+              .toList()
+          : <HumidityTrend>[],
       wasteProcessedTrend: (json['waste_processed_trend'] as List)
           .map((item) => WasteTrend.fromJson(item as Map<String, dynamic>))
           .toList(),

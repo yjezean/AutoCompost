@@ -89,9 +89,9 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
               ),
               tabs: [
                 _buildTab('All', Icons.list, 0),
-                _buildTab('Planning', Icons.schedule, 1),
-                _buildTab('Active', Icons.play_circle, 2),
-                _buildTab('Completed', Icons.check_circle, 3),
+                _buildTab('Active', Icons.play_circle, 1),
+                _buildTab('Completed', Icons.check_circle, 2),
+                _buildTab('Analytics', Icons.analytics, 3),
               ],
             ),
           ),
@@ -136,9 +136,9 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
                   controller: _tabController,
                   children: [
                     _buildCycleList(cycleProvider.cycles, cycleProvider, false),
-                    _buildCycleList(cycleProvider.planningCycles, cycleProvider, false),
                     _buildCycleList(cycleProvider.activeCycles, cycleProvider, false),
-                    _buildCycleList(cycleProvider.completedCycles, cycleProvider, true),
+                    _buildCycleList(cycleProvider.completedCycles, cycleProvider, false),
+                    const CompletedCyclesAnalyticsScreen(),
                   ],
                 );
               },
@@ -208,56 +208,28 @@ class _CycleManagementScreenState extends State<CycleManagementScreen>
 
     return RefreshIndicator(
       onRefresh: () => provider.refresh(),
-      child: Column(
-        children: [
-          // Analytics button for completed cycles
-          if (isCompletedTab) ...[
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const CompletedCyclesAnalyticsScreen(),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.analytics),
-                label: const Text('View Analytics'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+      child: ListView.builder(
+        itemCount: cycles.length,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemBuilder: (context, index) {
+          final cycle = cycles[index];
+          return CycleCard(
+            cycle: cycle,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CycleDetailScreen(cycleId: cycle.id),
                 ),
-              ),
-            ),
-          ],
-          // Cycles list
-          Expanded(
-            child: ListView.builder(
-              itemCount: cycles.length,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              itemBuilder: (context, index) {
-                final cycle = cycles[index];
-                return CycleCard(
-                  cycle: cycle,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CycleDetailScreen(cycleId: cycle.id),
-                      ),
-                    ).then((_) {
-                      provider.refresh();
-                    });
-                  },
-                  onActivate: cycle.status != 'active'
-                      ? () => _activateCycle(context, cycle.id, provider)
-                      : null,
-                );
-              },
-            ),
-          ),
-        ],
+              ).then((_) {
+                provider.refresh();
+              });
+            },
+            onActivate: cycle.status != 'active'
+                ? () => _activateCycle(context, cycle.id, provider)
+                : null,
+          );
+        },
       ),
     );
   }
