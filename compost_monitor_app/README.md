@@ -37,17 +37,22 @@ The mobile app serves as the user interface for the compost monitoring system:
 
 ### Batch Management
 
-- Create new compost batches
-- View current active batch information
-- Track batch lifecycle (planning, active, completed)
-- Batch progress indicators
+- Create new compost cycles/batches
+- View current active cycle information
+- Track cycle lifecycle (planning, active, completed statuses)
+- Cycle progress indicators
+- View all cycles, active cycles, and completed cycles in separate tabs
 
 ### Analytics
 
+- **Completed Cycles Analytics**: Single analytics page showing comprehensive statistics and trends
+  - Summary statistics: Total completed cycles, average composting days, total waste processed, average temperature
+  - **Temperature Trend Chart**: Monthly average temperature trends over time
+  - **Humidity Trend Chart**: Monthly average humidity trends over time
+  - **Total Waste Trend Chart**: Monthly total waste processed trends
+  - Cycles completed by month visualization
 - Compost completion status calculation
 - C:N ratio calculations for waste optimization
-- Temperature curve analysis
-- Optimization recommendations
 
 ### Settings
 
@@ -189,9 +194,15 @@ Key dependencies (see `pubspec.yaml` for complete list):
 
 ### Cycle Management Screen
 
-- Create new compost batches
-- View current batch information
-- Batch lifecycle management
+- Tab-based interface with four views:
+  - **All**: View all compost cycles
+  - **Active**: View currently active cycles
+  - **Completed**: View completed cycles
+  - **Analytics**: Completed cycles analytics (temperature, humidity, and total waste trends)
+- Create new compost cycles
+- View cycle details and progress
+- Activate cycles (deactivates other active cycles)
+- Note: Cycles can have "planning" status, but there is no separate planning page/tab
 
 ### Settings Screen
 
@@ -223,6 +234,7 @@ Key dependencies (see `pubspec.yaml` for complete list):
 - `GET /api/v1/compost-batch/current` - Current active batch
 - `POST /api/v1/compost-batch` - Create new batch
 - `GET /api/v1/analytics/completion-status` - Completion status
+- `GET /api/v1/analytics/completed-cycles` - Completed cycles analytics (temperature, humidity, waste trends)
 
 ## Configuration
 

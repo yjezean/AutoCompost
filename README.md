@@ -159,14 +159,20 @@ The system consists of three main layers:
 
 ### Historical Analytics
 
-- Temperature and humidity charts (1, 7, 30 days)
+- Temperature and humidity charts (1, 7, 30 days) for current cycle
+- **Completed Cycles Analytics**: Single analytics page showing:
+  - Temperature trends over time
+  - Humidity trends over time
+  - Total waste processed trends
+  - Summary statistics across all completed cycles
 - Compost completion status calculation
 - Batch progress tracking
 
 ### Batch Management
 
-- Create and manage compost batches
-- Track batch lifecycle (planning, active, completed)
+- Create and manage compost cycles/batches
+- Track cycle lifecycle (planning, active, completed statuses)
+- View cycles in organized tabs (All, Active, Completed, Analytics)
 - C:N ratio calculations for waste input optimization
 
 ## MQTT Topics
