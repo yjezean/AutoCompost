@@ -29,8 +29,7 @@ Project_app/
 │   ├── migrations/       # Database migration scripts
 │   ├── systemd/          # Systemd service files
 │   ├── README.md         # Cloud module documentation
-│   ├── SETUP.md          # Cloud setup guide
-│   └── SYSTEMD_SETUP.md  # Systemd service setup guide
+│   └── SETUP.md          # Cloud setup guide
 │
 └── compost_monitor_app/  # Flutter mobile application
     ├── lib/              # Dart source code
@@ -134,7 +133,7 @@ The system consists of three main layers:
 - **Purpose**: GCP server backend for data processing, storage, and API
 - **Documentation**: [cloud/README.md](cloud/README.md)
 - **Setup Guide**: [cloud/SETUP.md](cloud/SETUP.md)
-- **Deployment Guide**: [cloud/SYSTEMD_SETUP.md](cloud/SYSTEMD_SETUP.md)
+- **Systemd Services**: Service files located in `cloud/systemd/` directory
 
 ### Mobile App Module
 
@@ -150,6 +149,7 @@ The system consists of three main layers:
 - **Humidity Control**: Maintains optimal range (50-60%) through fan control
 - **Priority Logic**: Temperature control takes priority over humidity
 - **Emergency Response**: Critical thresholds trigger immediate actions
+- **Optimization Toggle**: Automated control can be enabled/disabled via API or database settings
 
 ### Real-Time Monitoring
 
@@ -222,21 +222,6 @@ The system consists of three main layers:
 - MQTT broker URL
 - API base URL
 - Can be configured in-app via Settings screen
-
-## Troubleshooting
-
-### Hardware Issues
-
-- See [hardware/SETUP.md](hardware/SETUP.md) troubleshooting section
-
-### Backend Issues
-
-- See [cloud/SETUP.md](cloud/SETUP.md) troubleshooting section
-- Check systemd service logs: `sudo journalctl -u compost-mqtt-listener.service -f`
-
-### App Issues
-
-- See [compost_monitor_app/SETUP.md](compost_monitor_app/SETUP.md) troubleshooting section
 
 ## License
 
