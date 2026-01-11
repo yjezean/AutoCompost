@@ -71,26 +71,26 @@ Libraries should appear in **Sketch > Include Library > Contributed Libraries**
 
 ### 3.1 Pin Reference
 
-| Component | ESP32 Pin | Notes |
-|-----------|-----------|-------|
-| DHT11 Data | GPIO 21 | Requires pull-up resistor |
-| DHT11 VCC | 3.3V | |
-| DHT11 GND | GND | |
-| Lid Servo Signal | GPIO 27 | PWM pin |
-| Lid Servo VCC | 5V | |
-| Lid Servo GND | GND | |
-| Stirrer Servo Signal | GPIO 26 | PWM pin |
-| Stirrer Servo VCC | 5V | |
-| Stirrer Servo GND | GND | |
-| Relay Signal | GPIO 25 | |
-| Relay VCC | 5V | |
-| Relay GND | GND | |
-| Buzzer | GPIO 23 | |
-| Green LED | GPIO 18 | With 220Ω resistor |
-| Red LED | GPIO 19 | With 220Ω resistor |
-| Lid Button | GPIO 33 | Internal pull-up |
-| Relay Button | GPIO 22 | Internal pull-up |
-| Stirrer Button | GPIO 32 | Internal pull-up |
+| Component            | ESP32 Pin | Notes                     |
+| -------------------- | --------- | ------------------------- |
+| DHT11 Data           | GPIO 21   | Requires pull-up resistor |
+| DHT11 VCC            | 3.3V      |                           |
+| DHT11 GND            | GND       |                           |
+| Lid Servo Signal     | GPIO 27   | PWM pin                   |
+| Lid Servo VCC        | 5V        |                           |
+| Lid Servo GND        | GND       |                           |
+| Stirrer Servo Signal | GPIO 26   | PWM pin                   |
+| Stirrer Servo VCC    | 5V        |                           |
+| Stirrer Servo GND    | GND       |                           |
+| Relay Signal         | GPIO 25   |                           |
+| Relay VCC            | 5V        |                           |
+| Relay GND            | GND       |                           |
+| Buzzer               | GPIO 23   |                           |
+| Green LED            | GPIO 18   | With 220Ω resistor        |
+| Red LED              | GPIO 19   | With 220Ω resistor        |
+| Lid Button           | GPIO 33   | Internal pull-up          |
+| Relay Button         | GPIO 22   | Internal pull-up          |
+| Stirrer Button       | GPIO 32   | Internal pull-up          |
 
 ### 3.2 Wiring Diagram
 
@@ -127,13 +127,16 @@ Relay Output:
 ### 3.3 Detailed Wiring Instructions
 
 #### DHT11 Sensor
+
 1. Connect DHT11 VCC to ESP32 3.3V
 2. Connect DHT11 GND to ESP32 GND
 3. Connect DHT11 DATA to ESP32 GPIO 21
 4. Connect 4.7kΩ or 10kΩ resistor between DATA and VCC (pull-up)
 
 #### Servo Motors
+
 1. **Lid Servo**:
+
    - Signal wire (usually orange/yellow) → GPIO 27
    - VCC (red) → ESP32 5V
    - GND (brown/black) → ESP32 GND
@@ -146,6 +149,7 @@ Relay Output:
 **Note**: If servos draw too much current, use external 5V power supply with common GND.
 
 #### Relay Module
+
 1. Relay IN (signal) → GPIO 25
 2. Relay VCC → ESP32 5V
 3. Relay GND → ESP32 GND
@@ -153,7 +157,9 @@ Relay Output:
 5. Connect fan power supply to relay COM and fan negative terminal
 
 #### LEDs
+
 1. **Green LED**:
+
    - Anode (+) → GPIO 18 → 220Ω resistor → LED → GND
    - Cathode (-) → GND
 
@@ -162,18 +168,22 @@ Relay Output:
    - Cathode (-) → GND
 
 #### Buzzer
+
 1. Positive terminal → GPIO 23
 2. Negative terminal → GND
 
 **Note**: Use active buzzer (5V). For passive buzzer, use PWM for tone control.
 
 #### Buttons
+
 1. **Lid Button**:
+
    - One terminal → GPIO 33
    - Other terminal → GND
    - ESP32 internal pull-up enabled in code
 
 2. **Relay Button**:
+
    - One terminal → GPIO 22
    - Other terminal → GND
 
@@ -191,6 +201,7 @@ Relay Output:
 ### 4.2 Configure Wi-Fi
 
 Edit the following lines:
+
 ```cpp
 const char* WIFI_SSID = "Your_WiFi_SSID";
 const char* WIFI_PASSWORD = "Your_WiFi_Password";
@@ -201,6 +212,7 @@ const char* WIFI_PASSWORD = "Your_WiFi_Password";
 ### 4.3 Configure MQTT Broker
 
 Edit the following line:
+
 ```cpp
 const char* MQTT_SERVER = "34.87.144.95";  // Your MQTT broker IP
 ```
@@ -208,6 +220,7 @@ const char* MQTT_SERVER = "34.87.144.95";  // Your MQTT broker IP
 ### 4.4 Configure Time Zone (Optional)
 
 Edit if needed:
+
 ```cpp
 const long gmtOffset_sec = 8 * 3600;  // GMT+8 (adjust for your timezone)
 ```
@@ -244,11 +257,16 @@ const long gmtOffset_sec = 8 * 3600;  // GMT+8 (adjust for your timezone)
 ### 6.1 Serial Monitor Output
 
 You should see:
+
 ```
 === Starting Composting Prototype ===
 Initializing DHT sensor...
+DHT11 test read successful: 25.3°C, 60.0%
+All hardware initialized successfully!
+WiFi connection will be attempted in main loop...
 WiFi connected!
-MQTT connected!
+IP address: 192.168.1.100
+MQTT: Connected successfully!
 Temperature: 25.3°C, Humidity: 60.0%
 ```
 
@@ -285,6 +303,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: ESP32 not showing in Port menu
 
 **Solutions**:
+
 1. Install USB-to-Serial drivers (CH340, CP2102, or FTDI)
 2. Try different USB cable (data cable, not charge-only)
 3. Try different USB port
@@ -295,6 +314,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Upload error or timeout
 
 **Solutions**:
+
 1. Hold BOOT button while clicking Upload
 2. Release BOOT button when "Connecting..." appears
 3. Check USB cable connection
@@ -306,6 +326,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Sensor returns NaN or no readings
 
 **Solutions**:
+
 1. Check wiring (VCC, GND, DATA)
 2. Verify pull-up resistor (4.7kΩ-10kΩ) between DATA and VCC
 3. Check power supply (3.3V or 5V)
@@ -317,6 +338,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Cannot connect to Wi-Fi
 
 **Solutions**:
+
 1. Verify SSID and password are correct
 2. Ensure Wi-Fi is 2.4GHz (ESP32 doesn't support 5GHz)
 3. Check Wi-Fi signal strength
@@ -328,6 +350,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Cannot connect to MQTT broker
 
 **Solutions**:
+
 1. Verify MQTT broker IP and port are correct
 2. Test MQTT broker accessibility:
    ```bash
@@ -342,6 +365,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Servo doesn't respond to commands
 
 **Solutions**:
+
 1. Check servo wiring (signal, VCC, GND)
 2. Verify servo is receiving power (5V)
 3. Check if servo is compatible (standard servos work best)
@@ -353,6 +377,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Relay doesn't turn fan ON/OFF
 
 **Solutions**:
+
 1. Check relay wiring (signal, VCC, GND)
 2. Verify relay module is active LOW or active HIGH (check module type)
 3. Test relay with simple test code
@@ -364,6 +389,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Buttons don't trigger actions
 
 **Solutions**:
+
 1. Check button wiring (one side to GPIO, other to GND)
 2. Verify internal pull-up is enabled in code
 3. Test button continuity with multimeter
@@ -374,6 +400,7 @@ Temperature: 25.3°C, Humidity: 60.0%
 **Problem**: Red LED blinks indicating fault
 
 **Solutions**:
+
 1. Check Serial Monitor for error messages
 2. Verify sensor is working (green LED should be ON)
 3. Check Wi-Fi and MQTT connections
@@ -382,17 +409,20 @@ Temperature: 25.3°C, Humidity: 60.0%
 ## Power Supply Considerations
 
 ### USB Power
+
 - ESP32 can be powered via USB (5V)
 - Sufficient for development and testing
 - May be insufficient for all components (servos, fan)
 
 ### External Power Supply
+
 - Use external 5V/3A power supply for production
 - Connect to ESP32 VIN pin (if supported) or 5V pin
 - Ensure common GND connection
 - Use appropriate power supply for fan (5V or 12V)
 
 ### Power Consumption
+
 - ESP32: ~80-240mA (depending on Wi-Fi usage)
 - Servos: ~100-500mA each (when moving)
 - Fan: Depends on fan type (check specifications)
@@ -401,11 +431,13 @@ Temperature: 25.3°C, Humidity: 60.0%
 ## Safety Notes
 
 1. **Electrical Safety**:
+
    - Double-check all connections before powering on
    - Use appropriate voltage levels (3.3V for sensors, 5V for servos)
    - Ensure proper GND connections
 
 2. **Component Protection**:
+
    - Use current-limiting resistors for LEDs
    - Use pull-up resistors for DHT11
    - Protect ESP32 from overvoltage

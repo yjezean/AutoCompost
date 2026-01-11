@@ -266,7 +266,6 @@ Install via Arduino Library Manager:
 
 ## Safety Features
 
-
 ### Sensor Validation
 
 - Checks for valid sensor readings

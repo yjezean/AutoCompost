@@ -4,8 +4,6 @@
 #include <PubSubClient.h>
 #include <time.h>
 #include <ArduinoJson.h>
-#include "soc/soc.h"              // For WRITE_PERI_REG
-#include "soc/rtc_cntl_reg.h"     // For RTC_CNTL_BROWN_OUT_REG
 #define DHTTYPE DHT11   // DHT 11
 
 
@@ -97,14 +95,7 @@ void setup() {
   Serial.begin(115200);
   delay(2000); // Give serial monitor more time to connect
   
-  // Disable brownout detector to prevent resets (WORKAROUND)
-  // WARNING: This can cause instability if power is truly insufficient
-  // For production, use proper power supply (external 5V adapter + capacitor) instead
-  // This is a temporary workaround for development/testing
-  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-  
   Serial.println("\n\n=== Starting Composting Prototype ===");
-  Serial.println("NOTE: Brownout detector is DISABLED (workaround mode)");
   Serial.flush();
   
   // Initialize GPIO2 (LED_GREEN) as LOW first to ensure proper boot
@@ -176,9 +167,9 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
   digitalWrite(RELAY_PIN, LOW); // Ensure relay starts OFF
 
-  // 7. Setup MQTT Server (WiFi will be connected in main loop to avoid brownout)
+  // 7. Setup MQTT Server (WiFi will be connected in main loop)
   Serial.println("All hardware initialized successfully!");
-  Serial.println("WiFi connection will be attempted in main loop to avoid brownout...");
+  Serial.println("WiFi connection will be attempted in main loop...");
   Serial.flush();
   
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
@@ -230,8 +221,8 @@ void loop() {
   // --- PART 1.6: ACTION BEEP HANDLING ---
   handleActionBeep(currentTime);
 
-  // --- PART 1.7: WiFi CONNECTION (Deferred to avoid brownout) ---
-  // Attempt WiFi connection in main loop instead of setup to avoid brownout
+  // --- PART 1.7: WiFi CONNECTION (Deferred from setup) ---
+  // Attempt WiFi connection in main loop instead of setup for better stability
   if (!wifiInitialized && (currentTime - lastWiFiAttempt >= WIFI_RETRY_INTERVAL || lastWiFiAttempt == 0)) {
     lastWiFiAttempt = currentTime;
     Serial.println("Attempting WiFi connection (deferred from setup)...");
@@ -484,16 +475,16 @@ bool setup_wifi() {
   Serial.flush();
   delay(1000); // Extra delay before begin
   
-  // Begin WiFi connection - CRITICAL MOMENT - this causes power spike
-  Serial.println("Calling WiFi.begin() - waiting for capacitor to stabilize...");
+  // Begin WiFi connection - requires stable power supply
+  Serial.println("Calling WiFi.begin()...");
   Serial.flush();
   delay(1000);
   
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   
-  // CRITICAL: Very long delay immediately after begin() to let capacitor handle spike
-  Serial.println("Power spike detected - waiting 3 seconds for stabilization...");
-  delay(3000); // Very long delay - this is when brownout usually happens
+  // CRITICAL: Delay after begin() to allow power supply to stabilize
+  Serial.println("Waiting for power supply to stabilize...");
+  delay(3000); // Allow time for power supply to handle WiFi connection current draw
   
   Serial.println("Waiting for WiFi connection...");
   Serial.flush();
