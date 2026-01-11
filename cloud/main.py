@@ -264,6 +264,14 @@ async def get_sensor_data(
         logger.error(f"Error retrieving sensor data: {e}")
         import traceback
         logger.error(traceback.format_exc())
+        # Ensure connection is closed on error
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error retrieving sensor data: {str(e)}")
 
 @app.get("/api/v1/compost-batch/current", response_model=CompostBatch)
@@ -311,6 +319,14 @@ async def get_current_batch():
         raise
     except Exception as e:
         logger.error(f"Error retrieving current batch: {e}")
+        # Ensure connection is closed on error
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error retrieving batch: {str(e)}")
 
 @app.post("/api/v1/compost-batch", response_model=CompostBatch)
@@ -490,6 +506,14 @@ async def get_completion_status(
         raise
     except Exception as e:
         logger.error(f"Error calculating completion status: {e}")
+        # Ensure connection is closed on error
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error calculating completion status: {str(e)}")
 
 # Phase 2: Multi-Cycle Management Endpoints
@@ -537,6 +561,14 @@ async def get_cycles():
         
     except Exception as e:
         logger.error(f"Error retrieving cycles: {e}")
+        # Ensure connection is closed on error
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error retrieving cycles: {str(e)}")
 
 @app.get("/api/v1/cycles/{cycle_id}", response_model=CompostBatch)
@@ -583,6 +615,14 @@ async def get_cycle(cycle_id: int):
         raise
     except Exception as e:
         logger.error(f"Error retrieving cycle: {e}")
+        # Ensure connection is closed on error
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error retrieving cycle: {str(e)}")
 
 @app.post("/api/v1/cycles", response_model=CompostBatch)
@@ -1320,6 +1360,14 @@ async def get_completed_cycles_analytics():
         logger.error(f"Error retrieving completed cycles analytics: {e}")
         import traceback
         logger.error(traceback.format_exc())
+        # Ensure connection is closed on error
+        try:
+            if 'cursor' in locals():
+                cursor.close()
+            if 'conn' in locals():
+                conn.close()
+        except:
+            pass
         raise HTTPException(status_code=500, detail=f"Error retrieving analytics: {str(e)}")
 
 if __name__ == "__main__":

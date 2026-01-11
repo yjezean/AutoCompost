@@ -151,9 +151,8 @@ cloud/
 ├── requirements.txt           # Python dependencies
 ├── .env                       # Environment variables (create manually)
 ├── migrations/                # Database migration scripts
-│   ├── 002_phase2_schema_updates.sql
-│   ├── 003_optimization_settings.sql
-│   └── 004_insert_mock_completed_cycles.sql
+│   ├── 002_complete_schema_updates.sql
+│   └── 003_analytics_mock_data.sql
 ├── systemd/                   # Systemd service files
 │   ├── compost-api.service
 │   └── compost-mqtt-listener.service

@@ -1,6 +1,17 @@
--- Phase 2: Multi-Cycle Management Schema Updates
--- Migration: 002_phase2_schema_updates.sql
--- Date: 2024-01-04
+-- Complete Schema Updates: Phase 2 + Optimization Settings
+-- Migration: 002_complete_schema_updates.sql
+-- Created: 2026-01-06
+-- Description: Combined migration for Phase 2 multi-cycle management and optimization settings
+-- 
+-- This migration includes:
+-- 1. Phase 2: Multi-cycle management schema updates
+-- 2. Optimization settings table
+--
+-- Note: All operations are idempotent (safe to run multiple times)
+
+-- ============================================================================
+-- PHASE 2: MULTI-CYCLE MANAGEMENT SCHEMA UPDATES
+-- ============================================================================
 
 -- Update compost_batch table with waste tracking columns
 ALTER TABLE compost_batch ADD COLUMN IF NOT EXISTS green_waste_kg DECIMAL(5,2);
@@ -61,3 +72,24 @@ CREATE INDEX IF NOT EXISTS idx_compost_batch_status ON compost_batch(status);
 CREATE INDEX IF NOT EXISTS idx_cycle_waste_input_batch_id ON cycle_waste_input(batch_id);
 CREATE INDEX IF NOT EXISTS idx_compost_materials_type ON compost_materials(material_type);
 
+-- ============================================================================
+-- OPTIMIZATION SETTINGS
+-- ============================================================================
+
+-- Create system settings table for optimization control
+CREATE TABLE IF NOT EXISTS system_settings (
+    id SERIAL PRIMARY KEY,
+    setting_key VARCHAR(100) UNIQUE NOT NULL,
+    setting_value TEXT NOT NULL,
+    description TEXT,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_by VARCHAR(100) DEFAULT 'system'
+);
+
+-- Insert default optimization setting (enabled by default)
+INSERT INTO system_settings (setting_key, setting_value, description)
+VALUES ('optimization_enabled', 'true', 'Automated temperature and humidity control optimization')
+ON CONFLICT (setting_key) DO NOTHING;
+
+-- Create index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_system_settings_key ON system_settings(setting_key);

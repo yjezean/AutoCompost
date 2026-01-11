@@ -39,18 +39,21 @@ cd /opt/compost-backend
 ### 2.1 Clone or Upload Code
 
 **Option A: Using Git (if repository is available)**
+
 ```bash
 cd /opt/compost-backend
 git clone <repository-url> .
 ```
 
 **Option B: Using SCP (from local machine)**
+
 ```bash
 # From your local machine
 scp -r cloud/* user@server-ip:/opt/compost-backend/
 ```
 
 **Option C: Manual Upload**
+
 - Upload all files from the `cloud/` directory to `/opt/compost-backend/` on the server
 
 ### 2.2 Create Virtual Environment
@@ -77,6 +80,7 @@ sudo -u postgres psql
 ```
 
 In PostgreSQL prompt:
+
 ```sql
 -- Create database
 CREATE DATABASE compost_db;
@@ -102,9 +106,11 @@ cd /opt/compost-backend
 source venv/bin/activate
 
 # Run migrations in order
-psql -U compost_user -d compost_db -f migrations/002_phase2_schema_updates.sql
-psql -U compost_user -d compost_db -f migrations/003_optimization_settings.sql
-psql -U compost_user -d compost_db -f migrations/004_insert_mock_completed_cycles.sql
+# Note: 002_complete_schema_updates.sql combines Phase 2 schema updates and optimization settings
+psql -U compost_user -d compost_db -f migrations/002_complete_schema_updates.sql
+
+# Optional: Add mock data for analytics testing
+psql -U compost_user -d compost_db -f migrations/003_analytics_mock_data.sql
 ```
 
 **Note**: If you need the initial schema, check for migration `001_initial_schema.sql` or create tables manually based on your requirements.
@@ -114,11 +120,13 @@ psql -U compost_user -d compost_db -f migrations/004_insert_mock_completed_cycle
 ### 4.1 Configure Mosquitto (if needed)
 
 Edit Mosquitto configuration:
+
 ```bash
 sudo nano /etc/mosquitto/mosquitto.conf
 ```
 
 Ensure the following settings:
+
 ```
 listener 1883
 allow_anonymous true
@@ -208,6 +216,7 @@ python mqtt_listener.py
 ```
 
 You should see:
+
 - Database connection successful
 - MQTT connection successful
 - Waiting for messages on `compost/sensor/data`
@@ -217,6 +226,7 @@ Press `Ctrl+C` to stop.
 ### 7.2 Test FastAPI Server
 
 In a new terminal:
+
 ```bash
 cd /opt/compost-backend
 source venv/bin/activate
@@ -224,20 +234,24 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
 Or run directly:
+
 ```bash
 python main.py
 ```
 
 You should see:
+
 - Server starting on `http://0.0.0.0:8000`
 - Database connection successful
 
 Test the API:
+
 ```bash
 curl http://localhost:8000/health
 ```
 
 Access API documentation:
+
 - Swagger UI: `http://YOUR_SERVER_IP:8000/docs`
 - ReDoc: `http://YOUR_SERVER_IP:8000/redoc`
 
@@ -273,6 +287,7 @@ For production deployment, set up systemd services for automatic startup and man
 See [SYSTEMD_SETUP.md](SYSTEMD_SETUP.md) for detailed instructions.
 
 Quick setup:
+
 ```bash
 # Copy service files
 sudo cp systemd/compost-mqtt-listener.service /etc/systemd/system/
@@ -316,4 +331,3 @@ curl http://localhost:8000/health
 # Get current batch (may return 404 if no batch exists)
 curl http://localhost:8000/api/v1/compost-batch/current
 ```
-

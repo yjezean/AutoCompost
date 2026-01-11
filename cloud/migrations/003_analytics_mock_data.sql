@@ -1,8 +1,9 @@
--- Migration: Insert Mock Data for Completed Cycles Analytics
+-- Migration: Analytics Mock Data
 -- Created: 2026-01-06
 -- Updated: 2026-01-06 (Enhanced with better patterns, no zero waste, humidity trends)
 -- Description: Inserts mock completed cycles and sensor data for analytics testing
--- Prerequisites: Run 004_cleanup_mock_data.sql first to clean existing mock data
+-- Note: This migration is idempotent (safe to run multiple times). If you need to clean existing mock data,
+--       manually delete completed cycles: DELETE FROM compost_batch WHERE status = 'completed';
 
 -- Insert mock completed cycles (last 6 months with varied waste amounts)
 -- All cycles have non-zero waste to ensure good analytics patterns
