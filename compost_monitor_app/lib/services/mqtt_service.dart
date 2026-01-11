@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
 import '../models/sensor_data.dart';
@@ -116,12 +117,14 @@ class MqttService {
         final jsonData = json.decode(payload) as Map<String, dynamic>;
 
         // Create DeviceStatus from the message
-        final statusString = jsonData['status'] as String? ?? jsonData['action'] as String?;
+        final statusString =
+            jsonData['status'] as String? ?? jsonData['action'] as String?;
         if (statusString == null) {
-          print('[MQTT] Error: No status/action in payload for $deviceType');
+          debugPrint(
+              '[MQTT] Error: No status/action in payload for $deviceType');
           return;
         }
-        
+
         final timestampString = jsonData['timestamp'] as String?;
         DateTime localTimestamp;
         if (timestampString != null) {
@@ -134,18 +137,18 @@ class MqttService {
         } else {
           localTimestamp = DateTime.now();
         }
-        
+
         final status = DeviceStatus(
           device: _parseDeviceType(deviceType),
           action: DeviceStatus.parseDeviceAction(statusString),
           timestamp: localTimestamp,
         );
-        
+
         _deviceStatusController.add(status);
-        print('[MQTT] Status: $deviceType -> ${status.action}');
+        debugPrint('[MQTT] Status: $deviceType -> ${status.action}');
       }
     } catch (e) {
-      print('[MQTT] Error handling message on $topic: $e');
+      debugPrint('[MQTT] Error handling message on $topic: $e');
     }
   }
 

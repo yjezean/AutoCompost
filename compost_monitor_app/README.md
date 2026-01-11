@@ -91,7 +91,7 @@ The mobile app serves as the user interface for the compost monitoring system:
 
 ## Project Structure
 
-```
+```text
 compost_monitor_app/
 ├── lib/
 │   ├── main.dart                    # App entry point
@@ -153,6 +153,7 @@ compost_monitor_app/
    - Can be changed in Settings screen after app launch
 
 3. **Run the app**:
+
    ```bash
    flutter run
    ```

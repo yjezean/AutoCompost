@@ -37,12 +37,13 @@ class DeviceControlProvider with ChangeNotifier {
         final oldState = _deviceStates[status.device];
         _deviceStates[status.device] = status.action;
         if (oldState != status.action) {
-          print('[DEVICE] ${status.device}: $oldState -> ${status.action}');
+          debugPrint(
+              '[DEVICE] ${status.device}: $oldState -> ${status.action}');
         }
         notifyListeners();
       },
       onError: (error) {
-        print('[DEVICE] Error: $error');
+        debugPrint('[DEVICE] Error: $error');
       },
     );
   }
@@ -91,7 +92,7 @@ class DeviceControlProvider with ChangeNotifier {
         notifyListeners();
       });
     } catch (e) {
-      print('[DEVICE] Command error: $device -> $action: $e');
+      debugPrint('[DEVICE] Command error: $device -> $action: $e');
       _commandStates[device] = DeviceCommandState.error;
       notifyListeners();
 

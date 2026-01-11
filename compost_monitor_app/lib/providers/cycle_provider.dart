@@ -38,7 +38,7 @@ class CycleProvider with ChangeNotifier {
     try {
       final cycles = await ApiService.getCycles();
       _cycles = cycles;
-      
+
       // Find active cycle
       if (cycles.isEmpty) {
         _activeCycle = null;
@@ -51,7 +51,7 @@ class CycleProvider with ChangeNotifier {
           ),
         );
       }
-      
+
       _error = null;
     } catch (e) {
       _error = e.toString();
@@ -71,11 +71,14 @@ class CycleProvider with ChangeNotifier {
     try {
       final cycleData = {
         'start_date': cycle.startDate.toIso8601String(),
-        if (cycle.projectedEndDate != null) 'projected_end_date': cycle.projectedEndDate.toIso8601String(),
+        // Note: projectedEndDate is always non-null in CompostBatch model,
+        // but API accepts it as optional, so we always include it
+        'projected_end_date': cycle.projectedEndDate.toIso8601String(),
         'status': cycle.status,
         if (cycle.greenWasteKg != null) 'green_waste_kg': cycle.greenWasteKg,
         if (cycle.brownWasteKg != null) 'brown_waste_kg': cycle.brownWasteKg,
-        if (cycle.initialVolumeLiters != null) 'initial_volume_liters': cycle.initialVolumeLiters,
+        if (cycle.initialVolumeLiters != null)
+          'initial_volume_liters': cycle.initialVolumeLiters,
       };
 
       final createdCycle = await ApiService.createCycle(cycleData);
@@ -99,7 +102,7 @@ class CycleProvider with ChangeNotifier {
 
     try {
       await ApiService.activateCycle(id);
-      
+
       // Update cycle status locally
       for (var i = 0; i < _cycles.length; i++) {
         if (_cycles[i].id == id) {
@@ -132,7 +135,7 @@ class CycleProvider with ChangeNotifier {
           );
         }
       }
-      
+
       _error = null;
     } catch (e) {
       _error = e.toString();
@@ -151,7 +154,7 @@ class CycleProvider with ChangeNotifier {
 
     try {
       final updatedCycle = await ApiService.updateCycle(id, data);
-      
+
       // Update cycle in list
       final index = _cycles.indexWhere((cycle) => cycle.id == id);
       if (index != -1) {
@@ -160,7 +163,7 @@ class CycleProvider with ChangeNotifier {
           _activeCycle = updatedCycle;
         }
       }
-      
+
       _error = null;
     } catch (e) {
       _error = e.toString();
@@ -181,4 +184,3 @@ class CycleProvider with ChangeNotifier {
     await fetchCycles();
   }
 }
-
