@@ -314,7 +314,8 @@ class CompostMQTTListener:
                 logger.debug(f"[CONTROL] Lid already OPEN, skipping")
         elif control['lid_action'] == 'CLOSED':
             if current_lid_state == 'OPEN':
-                self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "CLOSED"})
+                # Hardware expects "CLOSE" not "CLOSED"
+                self.publish_command(config.MQTT_CMD_LID_TOPIC, {"action": "CLOSE"})
                 self.last_lid_state = 'CLOSED'
                 logger.info(f"[CONTROL] ✓ Lid CLOSED - {control['message']}")
             else:

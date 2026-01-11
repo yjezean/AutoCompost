@@ -159,12 +159,13 @@ def check_humidity_control(humidity: float, optimal_min: float = 50.0, optimal_m
             "message": f"Humidity {humidity:.1f}% below optimal range (50-60%) - Moisture retention needed"
         }
     
-    # Optimal range
+    # Optimal range - close lid to maintain optimal conditions
+    # (lid was opened for dehumidification, now close it)
     return {
-        "fan_action": None,  # Maintain current state
-        "lid_action": None,   # Maintain current state
+        "fan_action": None,  # Maintain current state (fan may be on for temp control)
+        "lid_action": "CLOSED",  # Close lid when humidity returns to optimal
         "status": "optimal",
-        "message": f"Humidity {humidity:.1f}% within optimal range (50-60%)"
+        "message": f"Humidity {humidity:.1f}% within optimal range (50-60%) - Closing lid to maintain conditions"
     }
 
 
@@ -218,9 +219,18 @@ def get_combined_control_recommendation(temp: float, humidity: float) -> Dict[st
             fan_action = humidity_control["fan_action"]
         
         if temp_control["lid_action"] is not None:
-            lid_action = temp_control["lid_action"]
+            lid_action = temp_control["lid_action"]  # Temperature takes priority
         else:
-            lid_action = humidity_control["lid_action"]
+            lid_action = humidity_control["lid_action"]  # Use humidity control (will be "CLOSED" when optimal)
+        
+        # If both temp and humidity are optimal, ensure lid is closed and fan is off
+        # This handles edge cases where both return None
+        if (temp_control["status"] == "optimal" and 
+            humidity_control["status"] == "optimal"):
+            if lid_action is None:
+                lid_action = "CLOSED"  # Close lid when conditions are optimal
+            if fan_action is None:
+                fan_action = "OFF"  # Turn off fan when conditions are optimal
     
     # Combine messages
     messages = [temp_control["message"], humidity_control["message"]]
